@@ -1,1 +1,6 @@
 theme: jekyll-theme-cayman
+
+title: LiSA
+description: A library for Static Analysis
+
+ssv-homepage: https://ssv.dais.unive.it/
