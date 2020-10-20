@@ -8,5 +8,5 @@ semantic information into warnings that can be of value for the final user.
 
 # Guides and Examples
 
-* Learn [how to build](building-lisa.md) LiSA
-* Learn [how to use](using-lisa.md) LiSA
+* [Building LiSA locally](building-lisa.md)
+* [Using LiSA inside your analyzer](using-lisa.md)

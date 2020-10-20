@@ -1,5 +1,7 @@
 # Using LiSA 
 
+## Invoking LiSA
+
 LiSA operates on an intermediate representation based on control flow graphs, end exposes a set of interfaces that can be inherited for defining custom checks that generate warnings.
 The basic workflow for a program using LiSA `v0.1a1` is the following:
 

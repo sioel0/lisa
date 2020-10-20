@@ -12,6 +12,8 @@ Open a terminal (on Windows, every command should be executed from the **git bas
     * If some gem fails to install, use this: **gem install gem_name -v 'version' --source 'https://rubygems.org/'**
 * Create site: **bundle exec jekyll \_3.3.0\_ new . --force**
     * Revert all changes made to *_config.yml* and *index.md* and other staged files
+	* Make sure that the github-pages gem is still present in the gemfile
+		* **echo "gem 'github-pages', group: :jekyll_plugins" >> Gemfile**
 * Execute Jekyll: **bundle exec jekyll serve**
     * If the port is in use, add **--port port_number**
 
