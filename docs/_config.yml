@@ -3,6 +3,6 @@ theme: jekyll-theme-cayman
 title: LiSA
 description: A library for Static Analysis
 
-exclude: README.md
+exclude: [README.md]
 
 ssv-homepage: https://ssv.dais.unive.it/

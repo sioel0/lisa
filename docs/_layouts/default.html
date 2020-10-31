@@ -18,7 +18,7 @@
     <meta name="theme-color" content="#157878">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="stylesheet" href="{{ '/assets/css/style.css?v=' | append: site.github.build_revision | relative_url }}">
-	<script src="custom-assets/custom.js"></script>
+	<script src="/custom-assets/custom.js"></script>
 	<script src="https://kit.fontawesome.com/954504fcb3.js" crossorigin="anonymous"></script>
   </head>
   <body>
@@ -29,9 +29,39 @@
 	  <a href="{{ site.github.owner_url }}" class="btn"><i class="fas fa-university"></i>&nbsp;&nbsp;SSV GitHub</a>
     </header>
 
+	  {% unless page.notoc %}
+	  <div class="sidenav" id="toc" style="right: 0; left: auto">
+	    <h2>Page content</h2>
+	    <a href="javascript:void(0)" class="closebtn" onclick="closeNav('toc')">&times;</a>
+	    {% include toc.html html=content h_min=2 h_max=3 item_class='content-link' %}
+	  </div>
+	
+	  <div class="sidenav" id="overview" style="right: auto; left: 0">
+	    <h2>Overview</h2>
+	    <a href="javascript:void(0)" class="closebtn" onclick="closeNav('overview')">&times;</a>
+	    <ul>
+	    {% for item in site.data.sitemap.map %}		  
+		  <li id="list-section-header">{{item.title}}
+		  <ul>
+		    {% for entry in item.subfolderitems %}
+		    <li><a href="{{entry.url}}" alt="{{entry.page}}">{{entry.page}}</a></li>
+		    {% endfor %}
+		  </ul>
+		  </li>
+	    {% endfor %}
+ 	    </ul>
+	  </div>
+	  {% endunless %}
+
     <main id="content" class="main-content" role="main">  
-          
-      {{ content }}
+
+	  {% unless page.notoc %}
+	  <span onclick="openNav('overview')" class="clickable-span" style="float: left;"><i class="fas fa-chevron-left"></i> Overview</span>
+	  <span onclick="openNav('toc')" class="clickable-span" style="float: right;">On this page <i class="fas fa-chevron-right"></i></span>
+	  <br>
+	  {% endunless %}
+	
+	  {{ content }}
 
 	  <button onclick="topFunction()" id="backToTopBtn" title="Go to top"><i class="fas fa-angle-double-up"></i></button>
 	  
