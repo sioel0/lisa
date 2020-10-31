@@ -18,18 +18,18 @@ LiSA is developed and maintained by the [Software and System Verification (SSV)]
 
 ### LiSA's structure
 
-* [CFG structure](/structure/cfg.html)
-* [Syntactic Checks](/structure/syntactic-checks.html)
+* [CFG structure](structure/cfg.md)
+* [Syntactic Checks](structure/syntactic-checks.md)
 
 ### Building
 
-* [Building LiSA](/building-lisa.html)
+* [Building LiSA](building-lisa.md)
   
 ### Working with LiSA
     
-* [Create a frontend](/working/frontends.html)
-* [Create new analysis components](/working/analyses.html)
+* [Create a frontend](working/frontends.md)
+* [Create new analysis components](working/analyses.md)
 
 ### Javadoc
 
-Visit [this page](/javadoc/index.md) for a the javadocs of each release.
+Visit [this page](javadoc/index.md) for a the javadocs of each release.
