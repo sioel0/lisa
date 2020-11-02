@@ -2,20 +2,20 @@ map:
   - title: LiSA
     subfolderitems:
       - page: CFG structure
-        url: /structure/cfg.html
+        url: structure/cfg.html
       - page: Syntactic Checks
-        url: /structure/syntactic-checks.html
+        url: structure/syntactic-checks.html
   - title: Building
     subfolderitems:
       - page: Build LiSA
-        url: /building-lisa.html
+        url: building-lisa.html
   - title: Working with LiSA
     subfolderitems:
       - page: Create a frontend 
-        url: /working/frontends.html
+        url: working/frontends.html
       - page: Create new analysis components
-        url: /working/analyses.html
+        url: working/analyses.html
   - title: Javadoc
     subfolderitems:
       - page: 0.1a1
-        url: /javadoc/0.1a1/
+        url: javadoc/0.1a1/
