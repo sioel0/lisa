@@ -2,9 +2,12 @@ package it.unive.lisa.util.collections;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
-
+import java.util.Set;
+import java.util.function.BiFunction;
+import java.util.function.Predicate;
 import org.apache.commons.lang3.StringUtils;
 
 /**
@@ -16,30 +19,37 @@ import org.apache.commons.lang3.StringUtils;
  * The indexes are stored through bit vectors, enabling better memory
  * efficiency.
  * 
- * @param <T> the type of elements inside this set
- * 
  * @author <a href="mailto:luca.negrini@unive.it">Luca Negrini</a>
+ * 
+ * @param <T> the type of elements inside this set
  */
-public class ExternalSet<T> implements Iterable<T> {
+public class ExternalSet<T> implements Iterable<T>, Set<T> {
 
 	private static final int LENGTH_MASK = 0x3f;
 
 	/**
 	 * Yields a mask of {@code 0}s with one 1, represented as a long value, to
-	 * represent the given number inside a long bitvector. To determine the correct
-	 * long bitvector to apply this mask to, use {@link #bitvector_index(int)}
+	 * represent the given number inside a long bitvector. To determine the
+	 * correct long bitvector to apply this mask to, use
+	 * {@link #bitvector_index(int)}
 	 * 
 	 * @param n the number
+	 * 
 	 * @return the bitwise mask
 	 */
-	private static long bitmask(int n) {
-		// assuming that n will be stored in the right long (obtained with toNLongs(n)),
-		// we have to determine which bit of the long has to be turned to 1. To do that,
-		// we take the 1L (that is just the right-most bit set to 1) and we shift it to
-		// the left. The amount of positions that we need to shift it is equal to n%64
-		// (we use bitwise and as a mask) that yields the correct bit to represent a
+	private static int bitmask(int n) {
+		// assuming that n will be stored in the right long (obtained with
+		// toNLongs(n)),
+		// we have to determine which bit of the long has to be turned to 1. To
+		// do that,
+		// we take the 1L (that is just the right-most bit set to 1) and we
+		// shift it to
+		// the left. The amount of positions that we need to shift it is equal
+		// to n%64
+		// (we use bitwise and as a mask) that yields the correct bit to
+		// represent a
 		// number between 0 and 63 inside the long
-		return 1L << (n & LENGTH_MASK);
+		return (int) 1L << (n & LENGTH_MASK);
 	}
 
 	/**
@@ -47,6 +57,7 @@ public class ExternalSet<T> implements Iterable<T> {
 	 * given number lies.
 	 * 
 	 * @param n the number
+	 * 
 	 * @return the index
 	 */
 	private static int bitvector_index(int n) {
@@ -69,13 +80,14 @@ public class ExternalSet<T> implements Iterable<T> {
 	}
 
 	/**
-	 * The bits representing the set. If a bit is 1 then the corresponding element
-	 * of the cache is in the set.
+	 * The bits representing the set. If a bit is 1 then the corresponding
+	 * element of the cache is in the set.
 	 */
 	private long[] bits;
 
 	/**
-	 * The cache that generated this set and that contains the elements of this set.
+	 * The cache that generated this set and that contains the elements of this
+	 * set.
 	 */
 	private final ExternalSetCache<T> cache;
 
@@ -111,7 +123,8 @@ public class ExternalSet<T> implements Iterable<T> {
 	}
 
 	/**
-	 * Builds a set containing exactly one element and connected to the given cache.
+	 * Builds a set containing exactly one element and connected to the given
+	 * cache.
 	 * 
 	 * @param cache   the cache
 	 * @param element the element
@@ -124,8 +137,8 @@ public class ExternalSet<T> implements Iterable<T> {
 	}
 
 	/**
-	 * Builds a set containing all the elements of the given iterable and connected
-	 * to the given cache.
+	 * Builds a set containing all the elements of the given iterable and
+	 * connected to the given cache.
 	 * 
 	 * @param cache    the cache that must be used for this set
 	 * @param elements the elements put inside the set
@@ -145,12 +158,8 @@ public class ExternalSet<T> implements Iterable<T> {
 		return cache;
 	}
 
-	/**
-	 * Adds the given element to this set.
-	 * 
-	 * @param e the element to add
-	 */
-	public void add(T e) {
+	@Override
+	public boolean add(T e) {
 		long[] localbits = bits;
 		int pos = cache.indexOfOrAdd(e);
 		int bitvector = bitvector_index(pos);
@@ -161,26 +170,62 @@ public class ExternalSet<T> implements Iterable<T> {
 			bits = new long[1 + bitvector];
 			System.arraycopy(localbits, 0, bits, 0, localbits.length);
 			set(bits, pos);
-		} else
-			set(localbits, pos);
+			return true;
+		} else if (isset(localbits[bitvector], pos))
+			return false;
+
+		set(localbits, pos);
+		return true;
 	}
 
 	/**
-	 * Removes the given element from this set.
+	 * Adds to this set all elements contained into {@code other}. This method
+	 * is faster than {@link #addAll(Collection)} since it directly operates on
+	 * the underlying bit set.
 	 * 
-	 * @param e the element to remove
+	 * @param other the other set
 	 */
-	public void remove(T e) {
-		int pos = getCache().indexOf(e);
-		if (pos < 0)
+	public void addAll(ExternalSet<T> other) {
+		if (this == other)
 			return;
+		if (other == null)
+			return;
+		if (cache != other.cache)
+			return;
+
+		long[] localbits = this.bits, otherbits = other.bits;
+		int thislength = localbits.length, otherlength = otherbits.length;
+
+		if (thislength < otherlength) {
+			bits = new long[otherlength];
+			System.arraycopy(localbits, 0, bits, 0, localbits.length);
+		}
+
+		for (--otherlength; otherlength >= 0; otherlength--)
+			bits[otherlength] |= otherbits[otherlength];
+	}
+
+	@Override
+	@SuppressWarnings("unchecked")
+	public boolean remove(Object e) {
+		int pos;
+		try {
+			pos = cache.indexOf((T) e);
+		} catch (ClassCastException ex) {
+			// ugly, but java and generics :/
+			return false;
+		}
+
+		if (pos < 0)
+			return false;
 
 		long[] localbits = this.bits;
 		if (bitvector_index(pos) >= localbits.length)
-			return;
+			return false;
 
 		unset(localbits, pos);
 		removeTrailingZeros();
+		return true;
 	}
 
 	/**
@@ -246,9 +291,9 @@ public class ExternalSet<T> implements Iterable<T> {
 	}
 
 	/**
-	 * Determines if this set is equal to the given one, that is, if they share the
-	 * cache (checked through reference equality) and contains the same elements.
-	 * <br>
+	 * Determines if this set is equal to the given one, that is, if they share
+	 * the cache (checked through reference equality) and contains the same
+	 * elements. <br>
 	 * <br>
 	 * {@inheritDoc}
 	 */
@@ -281,8 +326,8 @@ public class ExternalSet<T> implements Iterable<T> {
 	}
 
 	/**
-	 * Yields a concrete list containing all the elements corresponding to the bits
-	 * in this set.
+	 * Yields a concrete list containing all the elements corresponding to the
+	 * bits in this set.
 	 * 
 	 * @return the collected elements
 	 */
@@ -294,8 +339,8 @@ public class ExternalSet<T> implements Iterable<T> {
 	}
 
 	/**
-	 * Yields a fresh copy of this set, defined over the same cache and containing
-	 * the same elements.
+	 * Yields a fresh copy of this set, defined over the same cache and
+	 * containing the same elements.
 	 * 
 	 * @return the fresh copy
 	 */
@@ -304,27 +349,14 @@ public class ExternalSet<T> implements Iterable<T> {
 	}
 
 	/**
-	 * Determines if an element belongs to this set.
-	 * 
-	 * @param e the element
-	 * @return true if and only if {@code e} is in this set
-	 */
-	public final boolean contains(T e) {
-		int pos = cache.indexOf(e);
-		if (pos < 0)
-			// if it's not inside the cache, it's not in the set
-			return false;
-
-		int bitvector = bitvector_index(pos);
-		return bitvector < bits.length && isset(bits[bitvector], pos);
-	}
-
-	/**
 	 * Determines if this set contains all elements of another if they share the
-	 * same cache.
+	 * same cache. This method is faster than {@link #containsAll(Collection)}
+	 * since it directly operates on the underlying bit set.
 	 * 
 	 * @param other the other set
-	 * @return {@code true} if and only if {@code other} is included into this set
+	 * 
+	 * @return {@code true} if and only if {@code other} is included into this
+	 *             set
 	 */
 	public boolean contains(ExternalSet<T> other) {
 		if (this == other)
@@ -339,7 +371,8 @@ public class ExternalSet<T> implements Iterable<T> {
 			// clever check: this cannot contain other if other is bigger
 			return false;
 
-		// if at least one bit that is 0 in this is 1 in other, than this does not
+		// if at least one bit that is 0 in this is 1 in other, than this does
+		// not
 		// contain other
 		for (int i = otherbits.length; i >= 0; i--)
 			if ((localbits[i] | otherbits[i]) != localbits[i])
@@ -349,10 +382,11 @@ public class ExternalSet<T> implements Iterable<T> {
 	}
 
 	/**
-	 * Determines if this set has at least an element in common with another if they
-	 * share the same cache.
+	 * Determines if this set has at least an element in common with another if
+	 * they share the same cache.
 	 * 
 	 * @param other the other set
+	 * 
 	 * @return true if and only if this set intersects the other
 	 */
 	public final boolean intersects(ExternalSet<T> other) {
@@ -379,6 +413,7 @@ public class ExternalSet<T> implements Iterable<T> {
 	 * defined over the same cache, this set is returned.
 	 * 
 	 * @param other the other set
+	 * 
 	 * @return the intersection of the two sets
 	 */
 	public ExternalSet<T> intersection(ExternalSet<T> other) {
@@ -393,7 +428,8 @@ public class ExternalSet<T> implements Iterable<T> {
 		long[] otherbits;
 		ExternalSet<T> result;
 
-		// copy the shortest one, then perform bitwise and with the longest one on
+		// copy the shortest one, then perform bitwise and with the longest one
+		// on
 		// common bits
 		if (this.bits.length > other.bits.length) {
 			otherbits = this.bits;
@@ -414,11 +450,13 @@ public class ExternalSet<T> implements Iterable<T> {
 
 	/**
 	 * Yields a new set obtained from this by removing the given elements. If
-	 * {@code other} is {@code null}, or if the two sets are not defined over the
-	 * same cache, this set is returned.
+	 * {@code other} is {@code null}, or if the two sets are not defined over
+	 * the same cache, this set is returned.
 	 * 
 	 * @param other the elements to remove
-	 * @return a set obtained from this by removing the elements in {@code other}
+	 * 
+	 * @return a set obtained from this by removing the elements in
+	 *             {@code other}
 	 */
 	public ExternalSet<T> difference(ExternalSet<T> other) {
 		if (this == other)
@@ -444,11 +482,12 @@ public class ExternalSet<T> implements Iterable<T> {
 	}
 
 	/**
-	 * Yields the union of this set and another. Neither of them gets modified. If
-	 * {@code other} is {@code null}, or if the two sets are not defined over the
-	 * same cache, this set is returned.
+	 * Yields the union of this set and another. Neither of them gets modified.
+	 * If {@code other} is {@code null}, or if the two sets are not defined over
+	 * the same cache, this set is returned.
 	 * 
 	 * @param other the other set
+	 * 
 	 * @return the union of this set and {@code other}
 	 */
 	public ExternalSet<T> union(ExternalSet<T> other) {
@@ -479,6 +518,101 @@ public class ExternalSet<T> implements Iterable<T> {
 	}
 
 	/**
+	 * Yields {@code true} iff at least one element contained in this set
+	 * satisfies the given predicate.
+	 * 
+	 * @param predicate the predicate to be used for testing the elements
+	 * 
+	 * @return {@code true} iff that condition holds, {@code false} otherwise
+	 */
+	public boolean anyMatch(Predicate<T> predicate) {
+		for (T t : this)
+			if (predicate.test(t))
+				return true;
+
+		return false;
+	}
+
+	/**
+	 * Yields {@code true} iff none of the elements contained in this set
+	 * satisfy the given predicate.
+	 * 
+	 * @param predicate the predicate to be used for testing the elements
+	 * 
+	 * @return {@code true} iff that condition holds, {@code false} otherwise
+	 */
+	public boolean noneMatch(Predicate<T> predicate) {
+		for (T t : this)
+			if (predicate.test(t))
+				return false;
+
+		return true;
+	}
+
+	/**
+	 * Yields {@code true} iff all the elements contained in this set satisfy
+	 * the given predicate.
+	 * 
+	 * @param predicate the predicate to be used for testing the elements
+	 * 
+	 * @return {@code true} iff that condition holds, {@code false} otherwise
+	 */
+	public boolean allMatch(Predicate<T> predicate) {
+		for (T t : this)
+			if (!predicate.test(t))
+				return false;
+
+		return true;
+	}
+
+	/**
+	 * Yields a new external set containing only the elements of this set that
+	 * satisfy the given predicate.
+	 * 
+	 * @param predicate the predicate to be used for testing the elements
+	 * 
+	 * @return a new external set filtered by {@code predicate}
+	 */
+	public ExternalSet<T> filter(Predicate<T> predicate) {
+		ExternalSet<T> result = copy();
+		for (T t : this)
+			if (!predicate.test(t))
+				result.remove(t);
+
+		return result;
+	}
+
+	/**
+	 * Reduces this set to a single element. The result starts at {@code base},
+	 * and it is transformed by invoking {@code reducer} on the current result
+	 * and each element inside this set.
+	 * 
+	 * @param base    the initial value for building the result
+	 * @param reducer the function that combines two elements into a new result
+	 * 
+	 * @return the reduced element
+	 */
+	public T reduce(T base, BiFunction<T, T, T> reducer) {
+		T result = base;
+		for (T t : this)
+			result = reducer.apply(result, t);
+		return result;
+	}
+
+	/**
+	 * Yields the first element inside this set.
+	 * 
+	 * @return the first element
+	 * 
+	 * @throws IllegalStateException if this set is empty
+	 */
+	public T first() {
+		if (isEmpty())
+			throw new IllegalStateException("Cannot get first element from an empty set");
+		return iterator().next();
+	}
+
+	/**
 	 * An iterator over the elements of a {@link ExternalSet}.
 	 * 
 	 * @author <a href="mailto:luca.negrini@unive.it">Luca Negrini</a>
@@ -505,7 +639,8 @@ public class ExternalSet<T> implements Iterable<T> {
 		 */
 		private BitSetIterator() {
 			this.bits = ExternalSet.this.bits;
-			this.totalBits = bits.length << 6; // we go back to the integer representation
+			this.totalBits = bits.length << 6; // we go back to the integer
+												// representation
 			this.next = findNextBit();
 		}
 
@@ -513,7 +648,7 @@ public class ExternalSet<T> implements Iterable<T> {
 		 * Yields the next non-ZERO bit in the set.
 		 * 
 		 * @return the position of the next non-zero bit in the set, starting at
-		 *         {@code start} non-inclusive, or {@code -1}
+		 *             {@code start} non-inclusive, or {@code -1}
 		 */
 		private int findNextBit() {
 			long[] localbits = this.bits;
@@ -564,5 +699,78 @@ public class ExternalSet<T> implements Iterable<T> {
 		public void remove() {
 			throw new UnsupportedOperationException("Removal from a bitset is not supported");
 		}
+	}
+
+	@Override
+	@SuppressWarnings("unchecked")
+	public boolean contains(Object o) {
+		int pos;
+		try {
+			pos = cache.indexOf((T) o);
+		} catch (ClassCastException e) {
+			// ugly, but java and generics :/
+			return false;
+		}
+
+		if (pos < 0)
+			// if it's not inside the cache, it's not in the set
+			return false;
+
+		int bitvector = bitvector_index(pos);
+		return bitvector < bits.length && isset(bits[bitvector], pos);
+	}
+
+	@Override
+	public Object[] toArray() {
+		Object[] array = new Object[size()];
+		int i = 0;
+		for (T t : this)
+			array[i++] = t;
+		return array;
+	}
+
+	@Override
+	public <E> E[] toArray(E[] a) {
+		return new ArrayList<>(this).toArray(a);
+	}
+
+	@Override
+	public boolean containsAll(Collection<?> c) {
+		for (Object o : c)
+			if (!contains(o))
+				return false;
+		return true;
+	}
+
+	@Override
+	public boolean addAll(Collection<? extends T> c) {
+		boolean result = false;
+		for (T o : c)
+			result |= add(o);
+		return result;
+	}
+
+	@Override
+	public boolean retainAll(Collection<?> c) {
+		Collection<T> toRemove = new ArrayList<>();
+		for (T o : this)
+			if (!c.contains(o))
+				toRemove.add(o);
+
+		for (T o : toRemove)
+			remove(o);
+		return !toRemove.isEmpty();
+	}
+
+	@Override
+	public boolean removeAll(Collection<?> c) {
+		Collection<T> toRemove = new ArrayList<>();
+		for (T o : this)
+			if (c.contains(o))
+				toRemove.add(o);
+
+		for (T o : toRemove)
+			remove(o);
+		return !toRemove.isEmpty();
 	}
 }
