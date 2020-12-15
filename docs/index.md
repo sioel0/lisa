@@ -19,6 +19,7 @@ LiSA is developed and maintained by the [Software and System Verification (SSV)]
 ### LiSA's structure
 
 * [CFG structure](structure/cfg.md)
+* [Analysis Infrastructure](structure/analysis-infrastructure.md)
 * [Syntactic Checks](structure/syntactic-checks.md)
 
 ### Building

@@ -5,6 +5,8 @@ map:
         url: structure/cfg.html
       - page: Syntactic Checks
         url: structure/syntactic-checks.html
+      - page: Analysis Infrastructure
+        url: structure/analysis-infrastructure.html
   - title: Building
     subfolderitems:
       - page: Build LiSA
@@ -19,3 +21,5 @@ map:
     subfolderitems:
       - page: 0.1a1
         url: javadoc/0.1a1/
+      - page: 0.1a2
+        url: javadoc/0.1a2/
