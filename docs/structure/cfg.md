@@ -26,7 +26,7 @@ For more information about LiSA's type system, see the [Typing](#typing) section
 
 ### About native calls
 
-Simulating native constructs without directly defining them enables different semantics for the same construct, depending on the language that they are written in (i.e., the frontend that translated the code). A simple but meaningful example is the handling of array access statements. The statement `array[index]` has different meaning under different languages. For instance, in languages like Java and C, executing such a statement will lead to a runtime error if index is less than 0. However, in a program written in Python, `index = -1` will cause the array access statement to access the last element of the array. Having a unique semantics for array access will require instrumentation code to be prefixed to the statement to ensure that the correct semantics is obtained. For instance, if the semantics was the one of the Java language, a Python frontend would need to generate (and then translate) the following code to comply with the language semantics:
+Simulating native constructs without directly defining them enables different semantics for the same construct, depending on the language that they are written in (i.e., the frontend that translated the code). A simple but meaningful example is the handling of array access statements. The statement `array[index]` has different meaning under different languages. For instance, in languages like Java, executing such a statement will lead to a runtime error if index is less than 0. However, in a program written in Python, `index = -1` will cause the array access statement to access the last element of the array. Having a unique semantics for array access will require instrumentation code to be prefixed to the statement to ensure that the correct semantics is obtained. For instance, if the semantics was the one of the Java language, a Python frontend would need to generate (and then translate) the following code to comply with the language semantics:
 ```python
 if index < 0:
     index = array.length - index
@@ -38,7 +38,7 @@ class JavaArrayAccess extends NativeCall { ... }
 ```
 and its `semantics` method will provide the actual statement's semantics (here reported as partial pseudocode):
 ```
-if index is definetly negative
+if index is definitly negative
     return bottom
 else 
     return domain.valueof(heapAbstraction.get(array, index))
@@ -60,7 +60,7 @@ While this avoids instrumentation code and the definition of a standard set of c
 
 The [Edge][edge] class has three concrete instances:
 * [SequentialEdge][seq] modeling a sequential flow between two statements, where the second one is executed right after the first;
-* [TrueEdge][true] modeling a conditional flow between two statments, where the second one is executed only if the result of the first is a _true_ boolean value;
+* [TrueEdge][true] modeling a conditional flow between two statements, where the second one is executed only if the result of the first is a _true_ boolean value;
 * [FalseEdge][false] modeling a conditional flow between two statments, where the second one is executed only if the result of the first is a _false_ boolean value;
 
 ![edges_hierarchy](edges.png)
