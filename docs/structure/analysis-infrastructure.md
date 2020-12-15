@@ -109,7 +109,7 @@ While it is ensured that one `CallGraph` will be available during the analysis, 
 
 Having all the bits to compose and execute a complete analysis abstracted away from the statements semantics enables a clear and elegant definition of what they compute. This is achieved primarely in the `semantics()` method of the [Statement][stmt] class, that given an entry state (`AnalysisState`) and a `CallGraph` for resolve interprocedural operations, computes an exit state (`AnalysisState`). Implementations are also responsible of invoking inner expression's `semantics()` and store their result in the `expressions` parameter, that is a `FunctionalLattice` instance that maps [Expression][expr]s to their exit state for the fixpoint computation.
 
-Defining what a statement computes is easy and straightforward. For instance, the semantics of the [Assignment][assing] statement is the following:
+Defining what a statement computes is easy and straightforward. For instance, the semantics of the [Assignment][assign] statement is the following:
 ```java
 public final <H extends HeapDomain<H>, V extends ValueDomain<V>> AnalysisState<H, V> semantics(
 		AnalysisState<H, V> entryState, CallGraph callGraph, ExpressionStore<AnalysisState<H, V>> expressions)
