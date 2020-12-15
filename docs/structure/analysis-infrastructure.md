@@ -11,7 +11,7 @@ Moreover, LiSA has an internal hierarchy of [SymbolicExpression][symbolic]s targ
 
 ## On Symbolic Expressions
 
-Symbolic expressions are the internal language of LiSA: all abstract domains reason in terms of these expression. These expressions are defined, as can be seen in the image below, over an extemely small set of operations.
+Symbolic expressions are the internal language of LiSA: all abstract domains reason in terms of these expressions. These expressions are defined, as can be seen in the image below, over an extremely small set of operations.
 
 ![symbolic_expressions](symbolic.png)
 
@@ -21,7 +21,7 @@ Symbolic expressions are split into two sub-hierarchies:
 * Value expressions, that are expressions that work on constant values and identifiers;
 * Heap expressions, that model heap operations.
 
-As will be explained below, value abstractions can only reason about value expressions: all heap operations will be rewritten by heap abstractions before feeding the heap-free expression to the value abstraction. The rewriting happen in such a way that memory locations identified by combinations of heap expressions are mapped to a `HeapIdentifier`, agreeing to the logic of the heap abstraction used in the analysis.
+As will be explained below, value abstractions can only reason about value expressions: all heap operations will be rewritten by heap abstractions before feeding the heap-free expression to the value abstraction. The rewriting happens in such a way that memory locations identified by combinations of heap expressions are mapped to a `HeapIdentifier`, agreeing to the logic of the heap abstraction used in the analysis.
 
 ## Analysis fundamentals
 
@@ -49,7 +49,7 @@ public default boolean isTop() {
 
 For the above to work, the returned values of `top()` and `bottom()` *have* to be unique (that is, no `return new ...` should appear in the methods). If that is not the case, override these methods providing a coherent logic.
 
-**Note 2:** Lattice operations follow common patterns that are not dependent on the specefic instance (like testing for top or bottom values). LiSA provides the `BaseLattice` class, that overrides lattice operations, handling these base cases. This class defines abstract auxiliary methods (like `lubAux()`) that subclasses can use to provide their implementation-specific logic, knowing that neither lattice instances are top (according to `isTop()`), bottom (according to `isBottom()`), or `null`, and that the two instances are not equal (according to both `==` and `equals()`). Unless explicitly needed, all concrete `Lattice` implementations should inherit from `BaseLattice`.
+**Note 2:** Lattice operations follow common patterns that are not dependent on the specific instance (like testing for top or bottom values). LiSA provides the `BaseLattice` class, that overrides lattice operations, handling these base cases. This class defines abstract auxiliary methods (like `lubAux()`) that subclasses can use to provide their implementation-specific logic, knowing that neither lattice instances are top (according to `isTop()`), bottom (according to `isBottom()`), or `null`, and that the two instances are not equal (according to both `==` and `equals()`). Unless explicitly needed, all concrete `Lattice` implementations should inherit from `BaseLattice`.
 
 Three special instances of `Lattice` are provided within LiSA:
 1. `FunctionalLattice`, that applies functional lifting to inner `Lattice` instances that are mapped to the same key (this type is parametric to `F`,`K` and `V`, that are the concrete type of `FunctionalLattice`, the type of the keys, and the type of the values - that must be a subtype of `Lattice` - respectively);
@@ -63,7 +63,7 @@ Classes implementing the `SemanticDomain` interface represents entities that kno
 
 ![semantic_domain](semdom.png)
 
-* `D assign(I identifier, E expression)` yields a copy of a domain modified by the assignement of the abstract value corresponding to the evaluation of `expression` to `identifier`;
+* `D assign(I identifier, E expression)` yields a copy of a domain modified by the assignment of the abstract value corresponding to the evaluation of `expression` to `identifier`;
 * `D assume(E expression)` yields a copy of a domain modified by assuming that `expression` holds;
 * `D forgetIdentifier(I identifier)` forgets all information about a `identifier` (e.g. when it falls out of scope);
 * `D forgetIdentifiers(Collection<I> identifiers)` forgets all information about all `identifiers`;
@@ -89,13 +89,78 @@ Non-relational analyses compute independent values for different program variabl
 
 ## The Analysis State
 
-## The CallGraph
+The abstract state needs to be extended with some extra information about the program state at the executed statement, to model properties like the expression that is available on the stack for later computation. This extension is provided by the [AnalysisState][analysisstate], that contains an `AbstractState` and a collection of `SymbolicExpression`s that are available at a given moment in the program execution. This collection usually contains a single expression, that is the result of the abstract execution of the statement, but more than one expression could be introduced through lattice operations, like least upper bound. `AnalysisState` is parametric on the type `H` of `HeapDomain` and the type `V` of `ValueDomain`, and implements `Lattice<AnalysisState<H, V>>` and `SemanticDomain<AnalysisState<H, V>, SymbolicExpression, Identifier>`. Semantic operations are implemented by invoking the corresponding operation on the abstract state, and the computed expression is the assigned `Identifier` if the instance has been produced by a call to `assign()`, or that has been evaluated in case of `smallStepSemantics()`.
+
+### On analysis modularity
+
+`AnalysisState` is the "root" of the analysis object hierarchy, meaning that all external entities participating in the analysis or querying its results (e.g., fixpoint algorithms, `CallGraph` instances, ...) will interact exclusively with instances of this class, in an analysis-independent fashion: there is no compile-time binding between these entities and the concrete instances of `HeapDomain` and `ValueDomain` that will be executed, thus all operations that are be performed by such entities have to be agnostic of the actual abstract domains in place. This ensures a high level of modularity: all internal analysis components can be changed or replaced without requiring any modification of external ones.
+
+## The CallGraph interface
+
+All the analysis components introduced above only operate on `SymbolicExpression`s, that are able to model operations on both the heap and the concrete values, but no calling expression exists. To model calling instructions and achieve interprocedurality, LiSA uses [CallGraph][callgraph]s, that are able to resolve calls and evaluate their abstract result.
+
+The `CallGraph` interface primarely defines two methods: 
+* `Call resolve(UnresolvedCall call)` that, as stated while [introducing](cfg.md#about-regular-calls) `UnresolvedCall`s, can exploit type information to find their possible target(s);
+* `AnalysisState<H, V> getAbstractResultOf(CFGCall call, AnalysisState<H, V> entryState, Collection<SymbolicExpression>[] parameters)` that can evaluate the abstract result of a `CFGCall` knowing its entry state and the `SymbolicExpression`s representing its parameters.
+
+While it is ensured that one `CallGraph` will be available during the analysis, having it defined as an interface is another big factor to achieve analysis modularity: code that exploits `CallGraph`'s functionalities is agnostic to the actual implementation that will be used at analysis time, thus the the selection of the implementation to use at runtime is completely transparent to the analysis execution.
 
 ## Statement semantics
 
+Having all the bits to compose and execute a complete analysis abstracted away from the statements semantics enables a clear and elegant definition of what they compute. This is achieved primarely in the `semantics()` method of the [Statement][stmt] class, that given an entry state (`AnalysisState`) and a `CallGraph` for resolve interprocedural operations, computes an exit state (`AnalysisState`). Implementations are also responsible of invoking inner expression's `semantics()` and store their result in the `expressions` parameter, that is a `FunctionalLattice` instance that maps [Expression][expr]s to their exit state for the fixpoint computation.
+
+Defining what a statement computes is easy and straightforward. For instance, the semantics of the [Assignment][assing] statement is the following:
+```java
+public final <H extends HeapDomain<H>, V extends ValueDomain<V>> AnalysisState<H, V> semantics(
+		AnalysisState<H, V> entryState, CallGraph callGraph, ExpressionStore<AnalysisState<H, V>> expressions)
+		throws SemanticException {
+	AnalysisState<H, V> right = getRight().semantics(entryState, callGraph, expressions);
+	AnalysisState<H, V> left = getLeft().semantics(right, callGraph, expressions);
+	expressions.put(getRight(), right);
+	expressions.put(getLeft(), left);
+
+	AnalysisState<H, V> result = null;
+	for (SymbolicExpression expr1 : left.getComputedExpressions())
+		for (SymbolicExpression expr2 : right.getComputedExpressions()) {
+			AnalysisState<H, V> tmp = left.assign((Identifier) expr1, expr2);
+			if (result == null)
+				result = tmp;
+			else
+				result = result.lub(tmp);
+		}
+
+	if (!getRight().getMetaVariables().isEmpty())
+		result = result.forgetIdentifiers(getRight().getMetaVariables());
+	if (!getLeft().getMetaVariables().isEmpty())
+		result = result.forgetIdentifiers(getLeft().getMetaVariables());
+	return result;
+}
+```
+The first four lines evaluate the semantics of the inner expressions and store their results in the `expressions` functional lattice. Then, the result is composed by assigning all possible expressions computed by the right hand-side to all the identifiers computed by the left hand-side. In the end, all meta-variables (that are syntetic identifiers used to represent temporary values on the stack, like calls' return values) are forgotten.
+
+### Semantics of native calls
+
+The common semantics of all call statements is defined in the [Call][call] class. In particular, subclasses of such class only have to define the `callSemantics()` method, that will be invoked *after* all the parameters' semantics have already been computed. This simplifies what [NativeCall][nativecall] implementations, that are by far the most widespread statement isntance in LiSA's CFG structure, need to compute. Moreover, [UnaryNativeCall][unnativecall]s and [BinaryNativeCall][binnativecall]s, that are `NativeCall`s with one and two parameters respectively, already define this method, taking care of performing the least upper bound between all possible expressions of each parameter (i.e., there is no need of defining `for` loops as in the semantics of the assignment). Subclasses of these types only have to provide a `unarySemantics()` and a `binarySemantics()`, respectively, operating on a single `SymbolicExpression` for each parameter.
+
 ## Executing an analysis
 
+Registering an analysis for execution in LiSA is trivial:
+* the instance of `CallGraph` to use during the analysis can be set by passing it to `lisa.setCallGraph(callGraph)`;
+* an instance of `HeapDomain` can be registered for execution by passing it to `lisa.addHeapDomain(domain)`;
+* an instance of `ValueDomain` can be registered for execution by passing it to `lisa.addValueDomain(domain)`;
+* an instance of `NonRelationalHeapDomain` can be registered for execution by passing it to `lisa.addNonRelationalHeapDomain(domain)` - this will be automatically wrapped in an instance of `HeapEnvironment`;
+* an instance of `NonRelationalValueDomain` can be registered for execution by passing it to `lisa.addNonRelationalValueDomain(domain)` - this will be automatically wrapped in an instance of `HeapEnvironment`;
+* optionally, the results of the analysis on each CFG can be dumped in [GraphViz](https://www.graphviz.org/)'s `dot` format by invoking `lisa.setDumpAnalysis(true)`.
+
+After registering all the desired domains, invoking `lisa.run()` will use `CallGraph`'s `fixpoint()` method to perform fixpoint computation on all CFGs, according to that `CallGraph`'s logic.
+
+**Note 1:** If no `CallGraph` is set for the analysis, or if no instances of `HeapDomain` and `NonRelationalHeapDomain` are registered, default implementations will be used.
+
+**Note 2:** It is suggested, but not required, that the instances of each component passed to the methods above represent the top element of the domain.
+
 [stmt]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/cfg/statement/Statement.java
+[expr]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/cfg/statement/Expression.java
+[assign]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/cfg/statement/Assignment.java
 [cg]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/callgraph/CallGraph.java
 [heap]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/analysis/HeapDomain.java
 [value]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/analysis/ValueDomain.java
@@ -111,3 +176,9 @@ Non-relational analyses compute independent values for different program variabl
 [nonrel]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/analysis/nonrelational/NonRelationalDomain.java
 [nonrelheap]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/analysis/nonrelational/NonRelationalHeapDomain.java
 [nonrelvalue]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/analysis/nonrelational/NonRelationalValueDomain.java
+[analysisstate]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/analysis/AnalysisState.java
+[callgraph]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/callgraph/CallGraph.java
+[call]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/cfg/statement/Call.java
+[nativecall]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/cfg/statement/NativeCall.java
+[unnativecall]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/cfg/statement/UnaryNativeCall.java
+[binnativecall]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/cfg/statement/BinaryNativeCall.java
