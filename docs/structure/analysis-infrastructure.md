@@ -154,7 +154,7 @@ Registering an analysis for execution in LiSA is trivial:
 
 After registering all the desired domains, invoking `lisa.run()` will use `CallGraph`'s `fixpoint()` method to perform fixpoint computation on all CFGs, according to that `CallGraph`'s logic.
 
-**Note 1:** If no `CallGraph` is set for the analysis, or if no instances of `HeapDomain` and `NonRelationalHeapDomain` are registered, default implementations will be used.
+**Note 1:** If no `CallGraph` is set for the analysis, or if no instances of `HeapDomain` and `NonRelationalHeapDomain` are registered, default implementations will be used. Current default implementation for `CallGraph` is [IntraproceduralCallGraph](https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/callgraph/impl/intraproc/IntraproceduralCallGraph.java). Current default implementation for `HeapDomain` is [MonolithicHeap](https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/analysis/heap/MonolithicHeap.java) (this will be overwritten by either providing a `HeapDomain` or a `NonRelationalHeapDomain`).
 
 **Note 2:** It is suggested, but not required, that the instances of each component passed to the methods above represent the top element of the domain.
 
