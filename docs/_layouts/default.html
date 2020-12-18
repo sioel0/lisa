@@ -44,7 +44,17 @@
 		  <li id="list-section-header">{{item.title}}
 		  <ul>
 		    {% for entry in item.subfolderitems %}
-		    <li><a href="{{ site.baseurl }}/{{entry.url}}" alt="{{entry.page}}">{{entry.page}}</a></li>
+				{% capture prefix %}{{'http'}}{% endcapture %}
+				{% capture url %}{{entry.url}}{% endcapture %}
+
+				{% assign prefix_size = prefix | size %}
+				{% assign result = url | slice: 0, prefix_size %}
+
+				{% if result == prefix %}
+			<li><a href="{{entry.url}}" alt="{{entry.page}}">{{entry.page}}</a></li>
+				{% else %}
+			<li><a href="{{ site.baseurl }}/{{entry.url}}" alt="{{entry.page}}">{{entry.page}}</a></li>
+				{% endif %}
 		    {% endfor %}
 		  </ul>
 		  </li>
