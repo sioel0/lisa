@@ -1,1 +1,0 @@
-packageSearchIndex = [{"l":"All Packages","url":"allpackages-index.html"},{"l":"it.unive.lisa"},{"l":"it.unive.lisa.cfg"},{"l":"it.unive.lisa.cfg.edge"},{"l":"it.unive.lisa.cfg.statement"},{"l":"it.unive.lisa.checks"},{"l":"it.unive.lisa.checks.syntactic"},{"l":"it.unive.lisa.checks.warnings"},{"l":"it.unive.lisa.logging"},{"l":"it.unive.lisa.util.collections"}]
