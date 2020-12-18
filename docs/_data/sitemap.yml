@@ -19,7 +19,5 @@ map:
         url: working/analyses.html
   - title: Javadoc
     subfolderitems:
-      - page: 0.1a1
-        url: javadoc/0.1a1/
       - page: 0.1a2
-        url: javadoc/0.1a2/
+        url: https://www.javadoc.io/doc/com.github.unive-ssv/lisa/0.1a2/index.html
