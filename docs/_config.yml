@@ -2,7 +2,7 @@ theme: jekyll-theme-cayman
 
 title: LiSA
 description: A library for Static Analysis
-google_analytics: G-Q4DDFCCKVK
+google_analytics: G-S6MJSTDQJL
 
 exclude: [README.md]
 
