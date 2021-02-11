@@ -25,6 +25,10 @@ LiSA is developed and maintained by the [Software and System Verification (SSV)]
 ### Building
 
 * [Building LiSA](building-lisa.md)
+
+### Testing LiSA
+
+* [The IMP language](imp.md)
   
 ### Working with LiSA
     

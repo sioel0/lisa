@@ -11,6 +11,10 @@ map:
     subfolderitems:
       - page: Build LiSA
         url: building-lisa.html
+  - title: Testing LiSA
+    subfolderitems:
+      - page: The IMP language
+        url: imp.html
   - title: Working with LiSA
     subfolderitems:
       - page: Create a frontend 
