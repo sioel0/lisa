@@ -1,5 +1,7 @@
 # HOW TO BUILD LOCALLY #
 
+## WINDOWS ##
+
 Open a terminal (on Windows, every command should be executed from the **git bash**) inside this directory (**not** the repository root).
 
 * Download ruby from [here](https://rubyinstaller.org/downloads/)
@@ -18,7 +20,7 @@ Open a terminal (on Windows, every command should be executed from the **git bas
 * Execute Jekyll: **bundle exec jekyll serve**
     * If the port is in use, add **--port port_number**
 
-## PROXY ##
+### PROXY ###
 
 The following should work for every command:
 
@@ -32,3 +34,4 @@ Besides, the **gem install** command has another parameter: --http-proxy http://
 ## REFERENCE ##
 
 This [guide](https://help.github.jp/enterprise/2.11/user/articles/setting-up-your-github-pages-site-locally-with-jekyll/)
+[Mac guide](https://jekyllrb.com/docs/installation/macos/)
