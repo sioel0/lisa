@@ -1,22 +1,19 @@
 package it.unive.lisa;
 
+import static it.unive.lisa.LiSAFactory.getDefaultFor;
+import static it.unive.lisa.LiSAFactory.getInstance;
+
 import it.unive.lisa.analysis.AbstractState;
 import it.unive.lisa.analysis.AnalysisState;
 import it.unive.lisa.analysis.CFGWithAnalysisResults;
 import it.unive.lisa.analysis.HeapDomain;
+import it.unive.lisa.analysis.SimpleAbstractState;
 import it.unive.lisa.analysis.ValueDomain;
-import it.unive.lisa.analysis.heap.MonolithicHeap;
-import it.unive.lisa.analysis.impl.types.TypeEnvironment;
-import it.unive.lisa.analysis.nonrelational.HeapEnvironment;
-import it.unive.lisa.analysis.nonrelational.NonRelationalHeapDomain;
-import it.unive.lisa.analysis.nonrelational.NonRelationalValueDomain;
-import it.unive.lisa.analysis.nonrelational.ValueEnvironment;
+import it.unive.lisa.analysis.impl.types.InferredTypes;
+import it.unive.lisa.analysis.nonrelational.inference.InferenceSystem;
+import it.unive.lisa.caches.Caches;
 import it.unive.lisa.callgraph.CallGraph;
-import it.unive.lisa.callgraph.impl.intraproc.IntraproceduralCallGraph;
-import it.unive.lisa.cfg.CFG;
-import it.unive.lisa.cfg.CFG.SemanticFunction;
-import it.unive.lisa.cfg.FixpointException;
-import it.unive.lisa.cfg.statement.Statement;
+import it.unive.lisa.callgraph.CallGraphConstructionException;
 import it.unive.lisa.checks.CheckTool;
 import it.unive.lisa.checks.syntactic.SyntacticCheck;
 import it.unive.lisa.checks.syntactic.SyntacticChecksExecutor;
@@ -24,7 +21,17 @@ import it.unive.lisa.checks.warnings.Warning;
 import it.unive.lisa.logging.IterationLogger;
 import it.unive.lisa.logging.TimerLogger;
 import it.unive.lisa.outputs.JsonReport;
+import it.unive.lisa.program.Program;
+import it.unive.lisa.program.ProgramValidationException;
+import it.unive.lisa.program.cfg.CFG;
+import it.unive.lisa.program.cfg.edge.Edge;
+import it.unive.lisa.program.cfg.statement.Expression;
+import it.unive.lisa.program.cfg.statement.Statement;
 import it.unive.lisa.symbolic.value.Skip;
+import it.unive.lisa.type.Type;
+import it.unive.lisa.util.collections.ExternalSet;
+import it.unive.lisa.util.datastructures.graph.FixpointException;
+import it.unive.lisa.util.datastructures.graph.GraphVisitor;
 import it.unive.lisa.util.file.FileManager;
 import java.io.IOException;
 import java.io.Writer;
@@ -50,9 +57,9 @@ public class LiSA {
 	private static final Logger log = LogManager.getLogger(LiSA.class);
 
 	/**
-	 * The collection of CFG instances that are to be analyzed
+	 * The program to analyze
 	 */
-	private final Collection<CFG> inputs;
+	private Program program;
 
 	/**
 	 * The collection of syntactic checks to execute
@@ -69,6 +76,11 @@ public class LiSA {
 	 * The callgraph to use during the analysis
 	 */
 	private CallGraph callGraph;
+
+	/**
+	 * The abstract state to run during the analysis
+	 */
+	private AbstractState<?, ?, ?> state;
 
 	/**
 	 * Whether or not type inference should be executed before the analysis
@@ -106,28 +118,14 @@ public class LiSA {
 	private String workdir;
 
 	/**
-	 * The value domains to run during the analysis
-	 */
-	private final Collection<ValueDomain<?>> valueDomains;
-
-	/**
-	 * The heap domains to run during the analysis
-	 */
-	private final Collection<HeapDomain<?>> heapDomains;
-
-	/**
 	 * Builds a new LiSA instance.
 	 */
 	public LiSA() {
-		this.inputs = Collections.newSetFromMap(new ConcurrentHashMap<>());
 		this.syntacticChecks = Collections.newSetFromMap(new ConcurrentHashMap<>());
 		// since the warnings collection will be filled AFTER the execution of
-		// every
-		// concurrent bit has completed its execution, it is fine to use a non
-		// thread-safe one
+		// every concurrent bit has completed its execution, it is fine to use a
+		// non thread-safe one
 		this.warnings = new ArrayList<>();
-		this.valueDomains = new ArrayList<>();
-		this.heapDomains = new ArrayList<>();
 		this.inferTypes = false;
 		this.dumpCFGs = false;
 		this.dumpTypeInference = false;
@@ -136,21 +134,13 @@ public class LiSA {
 	}
 
 	/**
-	 * Adds the given cfg to the ones under analysis.
+	 * Sets the program to analyze. Any previous value set through this method
+	 * is lost.
 	 * 
-	 * @param cfg the cfg to analyze
+	 * @param program the program to analyze
 	 */
-	public void addCFG(CFG cfg) {
-		inputs.add(cfg);
-	}
-
-	/**
-	 * Adds the given cfgs to the ones under analysis.
-	 * 
-	 * @param cfgs the cfgs to analyze
-	 */
-	public void addCFGs(Collection<CFG> cfgs) {
-		inputs.addAll(cfgs);
+	public void setProgram(Program program) {
+		this.program = program;
 	}
 
 	/**
@@ -172,6 +162,16 @@ public class LiSA {
 	 */
 	public <T extends CallGraph> void setCallGraph(T callGraph) {
 		this.callGraph = callGraph;
+	}
+
+	/**
+	 * Sets the {@link AbstractState} to use for the analysis. Any existing
+	 * value is overwritten.
+	 * 
+	 * @param state the abstract state to use
+	 */
+	public void setAbstractState(AbstractState<?, ?, ?> state) {
+		this.state = state;
 	}
 
 	/**
@@ -270,48 +270,6 @@ public class LiSA {
 	}
 
 	/**
-	 * Adds a new {@link HeapDomain} to execute during the analysis.
-	 * 
-	 * @param <T>    the concrete instance of domain to add
-	 * @param domain the domain to execute
-	 */
-	public <T extends HeapDomain<T>> void addHeapDomain(T domain) {
-		this.heapDomains.add(domain);
-	}
-
-	/**
-	 * Adds a new {@link NonRelationalHeapDomain} to execute during the
-	 * analysis.
-	 * 
-	 * @param <T>    the concrete instance of domain to add
-	 * @param domain the domain to execute
-	 */
-	public <T extends NonRelationalHeapDomain<T>> void addNonRelationalHeapDomain(T domain) {
-		this.heapDomains.add(new HeapEnvironment<>(domain));
-	}
-
-	/**
-	 * Adds a new {@link ValueDomain} to execute during the analysis.
-	 * 
-	 * @param <T>    the concrete instance of domain to add
-	 * @param domain the domain to execute
-	 */
-	public <T extends ValueDomain<T>> void addValueDomain(T domain) {
-		this.valueDomains.add(domain);
-	}
-
-	/**
-	 * Adds a new {@link NonRelationalValueDomain} to execute during the
-	 * analysis.
-	 * 
-	 * @param <T>    the concrete instance of domain to add
-	 * @param domain the domain to execute
-	 */
-	public <T extends NonRelationalValueDomain<T>> void addNonRelationalValueDomain(T domain) {
-		this.valueDomains.add(new ValueEnvironment<>(domain));
-	}
-
-	/**
 	 * Adds the given syntactic checks to the ones that will be executed. These
 	 * checks will be immediately executed after LiSA is started.
 	 * 
@@ -354,12 +312,9 @@ public class LiSA {
 	private void printConfig() {
 		log.info("LiSA setup:");
 		log.info("  workdir: " + String.valueOf(workdir));
-		log.info("  " + inputs.size() + " CFGs to analyze");
 		log.info("  dump input cfgs: " + dumpCFGs);
 		log.info("  infer types: " + inferTypes);
 		log.info("  dump inferred types: " + dumpTypeInference);
-		log.info("  " + heapDomains.size() + " heap domains to execute");
-		log.info("  " + valueDomains.size() + " value domains to execute");
 		log.info("  dump analysis results: " + dumpAnalysis);
 		log.info("  " + syntacticChecks.size() + " syntactic checks to execute"
 				+ (syntacticChecks.isEmpty() ? "" : ":"));
@@ -373,95 +328,149 @@ public class LiSA {
 		log.info("  " + warnings.size() + " warnings generated");
 	}
 
-	@SuppressWarnings({ "unchecked" })
-	private <H extends HeapDomain<H>, V extends ValueDomain<V>> void runAux() throws AnalysisExecutionException {
+	@SuppressWarnings("unchecked")
+	private <H extends HeapDomain<H>,
+			V extends ValueDomain<V>,
+			A extends AbstractState<A, H, V>> void runAux()
+					throws AnalysisExecutionException {
+		// fill up the types cache by side effect on an external set
+		ExternalSet<Type> types = Caches.types().mkEmptySet();
+		program.getRegisteredTypes().forEach(types::add);
+		types = null;
+
 		FileManager.setWorkdir(workdir);
+		Collection<CFG> allCFGs = program.getAllCFGs();
+
+		TimerLogger.execAction(log, "Finalizing input program", () -> {
+			try {
+				program.validateAndFinalize();
+			} catch (ProgramValidationException e) {
+				throw new AnalysisExecutionException("Unable to finalize target program", e);
+			}
+		});
 
 		if (dumpCFGs)
-			for (CFG cfg : IterationLogger.iterate(log, inputs, "Dumping input CFGs", "cfgs"))
+			for (CFG cfg : IterationLogger.iterate(log, allCFGs, "Dumping input CFGs", "cfgs"))
 				dumpCFG("", cfg, st -> "");
 
 		CheckTool tool = new CheckTool();
 		if (!syntacticChecks.isEmpty()) {
-			SyntacticChecksExecutor.executeAll(tool, inputs, syntacticChecks);
+			SyntacticChecksExecutor.executeAll(tool, allCFGs, syntacticChecks);
 			warnings.addAll(tool.getWarnings());
 		} else
 			log.warn("Skipping syntactic checks execution since none have been provided");
 
 		if (callGraph == null) {
-			log.warn("No call graph set for this analysis, defaulting to a non-interprocedural implementation");
-			callGraph = new IntraproceduralCallGraph();
+			try {
+				callGraph = getDefaultFor(CallGraph.class);
+			} catch (AnalysisSetupException e) {
+				throw new AnalysisExecutionException("Unable to create default call graph", e);
+			}
+			log.warn("No call graph set for this analysis, defaulting to " + callGraph.getClass().getSimpleName());
 		}
 
-		inputs.forEach(callGraph::addCFG);
-
-		// TODO we want to support these eventually
-		if (valueDomains.size() > 1) {
-			log.fatal("Analyses with a combination of value domains are not supported yet");
-			throw new AnalysisExecutionException("Analyses with a combination of value domains are not supported yet");
+		try {
+			callGraph.build(program);
+		} catch (CallGraphConstructionException e) {
+			log.fatal("Exception while building the call graph for the input program", e);
+			throw new AnalysisExecutionException("Exception while building the call graph for the input program", e);
 		}
-
-		// TODO we want to support these eventually
-		if (heapDomains.size() > 1) {
-			log.fatal("Analyses with a combination of heap domains are not supported yet");
-			throw new AnalysisExecutionException("Analyses with a combination of heap domains are not supported yet");
-		}
-
-		if (heapDomains.isEmpty()) {
-			log.warn("No heap domain has been set for this analysis, defaulting to a monolithic implementation");
-			heapDomains.add(new MonolithicHeap());
-		}
-
-		H heap = (H) heapDomains.iterator().next();
 
 		if (inferTypes) {
-			TimerLogger.execAction(log, "Computing type information",
-					() -> computeFixpoint(heap, new TypeEnvironment(), Statement::typeInference));
+			SimpleAbstractState<H, InferenceSystem<InferredTypes>> typesState;
+			try {
+				HeapDomain<?> heap;
+				if (state != null)
+					heap = state.getHeapState();
+				else
+					heap = getDefaultFor(HeapDomain.class);
+				// type inference is executed with the simplest abstract state
+				typesState = getInstance(SimpleAbstractState.class, heap, new InferenceSystem<>(new InferredTypes()))
+						.top();
+			} catch (AnalysisSetupException e) {
+				throw new AnalysisExecutionException("Unable to itialize type inference", e);
+			}
 
-			if (dumpTypeInference)
-				for (CFG cfg : IterationLogger.iterate(log, inputs, "Dumping type analysis", "cfgs")) {
-					CFGWithAnalysisResults<?, ?> result = callGraph.getAnalysisResultsOf(cfg);
+			TimerLogger.execAction(log, "Computing type information",
+					() -> {
+						try {
+							callGraph.fixpoint(new AnalysisState<>(typesState, new Skip()));
+						} catch (FixpointException e) {
+							log.fatal("Exception during fixpoint computation", e);
+							throw new AnalysisExecutionException("Exception during fixpoint computation", e);
+						}
+					});
+
+			String message = dumpTypeInference ? "Dumping type analysis and propagating it to cfgs"
+					: "Propagating type information to cfgs";
+			for (CFG cfg : IterationLogger.iterate(log, allCFGs, message, "cfgs")) {
+				CFGWithAnalysisResults<SimpleAbstractState<H, InferenceSystem<InferredTypes>>, H,
+						InferenceSystem<InferredTypes>> result = callGraph.getAnalysisResultsOf(cfg);
+				if (dumpTypeInference)
 					dumpCFG("typing___", result, st -> result.getAnalysisStateAt(st).toString());
-				}
+				cfg.accept(new TypesPropagator<>(), result);
+			}
 
 			callGraph.clear();
 		} else
-			log.warn("No type domain provided: dynamic type information will not be available for following analyses");
+			log.warn("Type inference disabled: dynamic type information will not be available for following analysis");
 
-		if (valueDomains.isEmpty()) {
-			// TODO we should have a base analysis that can serve as default
-			log.warn("Skipping analysis execution since no abstract domains have been provided");
+		if (state == null) {
+			log.warn("Skipping analysis execution since no abstract sate has been provided");
 			return;
 		}
 
-		V value = (V) valueDomains.iterator().next();
+		A state = (A) this.state.top();
 		TimerLogger.execAction(log, "Computing fixpoint over the whole program",
-				() -> computeFixpoint(heap, value, Statement::semantics));
+				() -> {
+					try {
+						callGraph.fixpoint(new AnalysisState<>(state, new Skip()));
+					} catch (FixpointException e) {
+						log.fatal("Exception during fixpoint computation", e);
+						throw new AnalysisExecutionException("Exception during fixpoint computation", e);
+					}
+				});
 
 		if (dumpAnalysis)
-			for (CFG cfg : IterationLogger.iterate(log, inputs, "Dumping analysis results", "cfgs")) {
-				CFGWithAnalysisResults<?, ?> result = callGraph.getAnalysisResultsOf(cfg);
+			for (CFG cfg : IterationLogger.iterate(log, allCFGs, "Dumping analysis results", "cfgs")) {
+				CFGWithAnalysisResults<A, H, V> result = callGraph.getAnalysisResultsOf(cfg);
 				dumpCFG("analysis___", result, st -> result.getAnalysisStateAt(st).toString());
 			}
 	}
 
-	private void dumpCFG(String filePrefix, CFG cfg, Function<Statement, String> labelGenerator) {
-		try (Writer file = FileManager.mkDotFile(filePrefix + cfg.getDescriptor().getFullSignature())) {
-			cfg.dump(file, cfg.getDescriptor().getFullSignature(), st -> labelGenerator.apply(st));
-		} catch (IOException e) {
-			log.error("Exception while dumping the analysis results on " + cfg.getDescriptor().getFullSignature(),
-					e);
+	private static class TypesPropagator<H extends HeapDomain<H>>
+			implements GraphVisitor<CFG, Statement, Edge, CFGWithAnalysisResults<
+					SimpleAbstractState<H, InferenceSystem<InferredTypes>>, H, InferenceSystem<InferredTypes>>> {
+
+		@Override
+		public boolean visit(CFGWithAnalysisResults<SimpleAbstractState<H, InferenceSystem<InferredTypes>>, H,
+				InferenceSystem<InferredTypes>> tool, CFG graph) {
+			return true;
+		}
+
+		@Override
+		public boolean visit(CFGWithAnalysisResults<SimpleAbstractState<H, InferenceSystem<InferredTypes>>, H,
+				InferenceSystem<InferredTypes>> tool, CFG graph, Edge edge) {
+			return true;
+		}
+
+		@Override
+		public boolean visit(CFGWithAnalysisResults<SimpleAbstractState<H, InferenceSystem<InferredTypes>>, H,
+				InferenceSystem<InferredTypes>> tool, CFG graph, Statement node) {
+			if (node instanceof Expression) {
+				((Expression) node).setRuntimeTypes(tool.getAnalysisStateAt(node).getState().getValueState()
+						.getInferredValue().getRuntimeTypes());
+			}
+			return true;
 		}
 	}
 
-	@SuppressWarnings({ "rawtypes", "unchecked" })
-	private <H extends HeapDomain<H>, V extends ValueDomain<V>> void computeFixpoint(H heap, V value,
-			SemanticFunction<H, V> semantics) {
-		try {
-			callGraph.fixpoint(new AnalysisState(new AbstractState(heap.top(), value.top()), new Skip()), semantics);
-		} catch (FixpointException e) {
-			log.fatal("Exception during fixpoint computation", e);
-			throw new AnalysisExecutionException("Exception during fixpoint computation", e);
+	private void dumpCFG(String filePrefix, CFG cfg, Function<Statement, String> labelGenerator) {
+		try (Writer file = FileManager.mkDotFile(filePrefix + cfg.getDescriptor().getFullSignatureWithParNames())) {
+			cfg.dump(file, st -> labelGenerator.apply(st));
+		} catch (IOException e) {
+			log.error("Exception while dumping the analysis results on " + cfg.getDescriptor().getFullSignature(),
+					e);
 		}
 	}
 

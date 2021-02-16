@@ -1,10 +1,12 @@
 package it.unive.lisa.analysis;
 
+import it.unive.lisa.program.cfg.ProgramPoint;
 import it.unive.lisa.symbolic.SymbolicExpression;
 import it.unive.lisa.symbolic.value.Identifier;
 import it.unive.lisa.symbolic.value.Skip;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.stream.Collectors;
 import org.apache.commons.collections.CollectionUtils;
 
 /**
@@ -16,16 +18,18 @@ import org.apache.commons.collections.CollectionUtils;
  * 
  * @author <a href="mailto:luca.negrini@unive.it">Luca Negrini</a>
  * 
- * @param <H> the type of heap analysis embedded in the abstract state
- * @param <V> the type of value analysis embedded in the abstract state
+ * @param <A> the type of {@link AbstractState} embedded in this state
+ * @param <H> the type of {@link HeapDomain} embedded in the abstract state
+ * @param <V> the type of {@link ValueDomain} embedded in the abstract state
  */
-public class AnalysisState<H extends HeapDomain<H>, V extends ValueDomain<V>>
-		implements Lattice<AnalysisState<H, V>>, SemanticDomain<AnalysisState<H, V>, SymbolicExpression, Identifier> {
+public class AnalysisState<A extends AbstractState<A, H, V>, H extends HeapDomain<H>, V extends ValueDomain<V>>
+		implements Lattice<AnalysisState<A, H, V>>,
+		SemanticDomain<AnalysisState<A, H, V>, SymbolicExpression, Identifier> {
 
 	/**
 	 * The abstract state of program variables and memory locations
 	 */
-	private final AbstractState<H, V> state;
+	private final A state;
 
 	/**
 	 * The last expressions that have been computed, representing side-effect
@@ -40,7 +44,7 @@ public class AnalysisState<H extends HeapDomain<H>, V extends ValueDomain<V>>
 	 *                               analysis state
 	 * @param computedExpression the expression that has been computed
 	 */
-	public AnalysisState(AbstractState<H, V> state, SymbolicExpression computedExpression) {
+	public AnalysisState(A state, SymbolicExpression computedExpression) {
 		this(state, Collections.singleton(computedExpression));
 	}
 
@@ -51,7 +55,7 @@ public class AnalysisState<H extends HeapDomain<H>, V extends ValueDomain<V>>
 	 *                                analysis state
 	 * @param computedExpressions the expressions that have been computed
 	 */
-	public AnalysisState(AbstractState<H, V> state, Collection<SymbolicExpression> computedExpressions) {
+	public AnalysisState(A state, Collection<SymbolicExpression> computedExpressions) {
 		this.state = state;
 		this.computedExpressions = computedExpressions;
 	}
@@ -62,7 +66,7 @@ public class AnalysisState<H extends HeapDomain<H>, V extends ValueDomain<V>>
 	 * 
 	 * @return the abstract state
 	 */
-	public AbstractState<H, V> getState() {
+	public A getState() {
 		return state;
 	}
 
@@ -83,55 +87,59 @@ public class AnalysisState<H extends HeapDomain<H>, V extends ValueDomain<V>>
 	}
 
 	@Override
-	public AnalysisState<H, V> assign(Identifier id, SymbolicExpression value) throws SemanticException {
-		return new AnalysisState<>(getState().assign(id, value), id);
+	public AnalysisState<A, H, V> assign(Identifier id, SymbolicExpression value, ProgramPoint pp)
+			throws SemanticException {
+		A assigned = state.assign(id, value, pp);
+		if (id.isWeak())
+			assigned = state.lub(assigned);
+		return new AnalysisState<>(assigned, id);
 	}
 
 	@Override
-	public AnalysisState<H, V> smallStepSemantics(SymbolicExpression expression) throws SemanticException {
-		AbstractState<H, V> s = state.smallStepSemantics(expression);
-		@SuppressWarnings("unchecked")
-		Collection<SymbolicExpression> exprs = CollectionUtils.collect(s.getHeapState().getRewrittenExpressions(),
-				e -> (SymbolicExpression) e);
+	public AnalysisState<A, H, V> smallStepSemantics(SymbolicExpression expression, ProgramPoint pp)
+			throws SemanticException {
+		A s = state.smallStepSemantics(expression, pp);
+		Collection<SymbolicExpression> exprs = s.getHeapState().getRewrittenExpressions().stream()
+				.map(e -> (SymbolicExpression) e).collect(Collectors.toList());
 		return new AnalysisState<>(s, exprs);
 	}
 
 	@Override
-	public AnalysisState<H, V> assume(SymbolicExpression expression) throws SemanticException {
-		return new AnalysisState<>(state.assume(expression), computedExpressions);
+	public AnalysisState<A, H, V> assume(SymbolicExpression expression, ProgramPoint pp) throws SemanticException {
+		return new AnalysisState<>(state.assume(expression, pp), computedExpressions);
 	}
 
 	@Override
-	public Satisfiability satisfies(SymbolicExpression expression) throws SemanticException {
-		return state.satisfies(expression);
+	public Satisfiability satisfies(SymbolicExpression expression, ProgramPoint pp) throws SemanticException {
+		return state.satisfies(expression, pp);
 	}
 
 	@Override
 	@SuppressWarnings("unchecked")
-	public AnalysisState<H, V> lub(AnalysisState<H, V> other) throws SemanticException {
+	public AnalysisState<A, H, V> lub(AnalysisState<A, H, V> other) throws SemanticException {
 		return new AnalysisState<>(state.lub(other.state),
 				CollectionUtils.union(computedExpressions, other.computedExpressions));
 	}
 
 	@Override
 	@SuppressWarnings("unchecked")
-	public AnalysisState<H, V> widening(AnalysisState<H, V> other) throws SemanticException {
+	public AnalysisState<A, H, V> widening(AnalysisState<A, H, V> other) throws SemanticException {
 		return new AnalysisState<>(state.widening(other.state),
 				CollectionUtils.union(computedExpressions, other.computedExpressions));
 	}
 
 	@Override
-	public boolean lessOrEqual(AnalysisState<H, V> other) throws SemanticException {
+	public boolean lessOrEqual(AnalysisState<A, H, V> other) throws SemanticException {
 		return state.lessOrEqual(other.state);
 	}
 
 	@Override
-	public AnalysisState<H, V> top() {
+	public AnalysisState<A, H, V> top() {
 		return new AnalysisState<>(state.top(), new Skip());
 	}
 
 	@Override
-	public AnalysisState<H, V> bottom() {
+	public AnalysisState<A, H, V> bottom() {
 		return new AnalysisState<>(state.bottom(), new Skip());
 	}
 
@@ -148,7 +156,7 @@ public class AnalysisState<H extends HeapDomain<H>, V extends ValueDomain<V>>
 	}
 
 	@Override
-	public AnalysisState<H, V> forgetIdentifier(Identifier id) throws SemanticException {
+	public AnalysisState<A, H, V> forgetIdentifier(Identifier id) throws SemanticException {
 		return new AnalysisState<>(state.forgetIdentifier(id), computedExpressions);
 	}
 
@@ -169,7 +177,7 @@ public class AnalysisState<H extends HeapDomain<H>, V extends ValueDomain<V>>
 			return false;
 		if (getClass() != obj.getClass())
 			return false;
-		AnalysisState<?, ?> other = (AnalysisState<?, ?>) obj;
+		AnalysisState<?, ?, ?> other = (AnalysisState<?, ?, ?>) obj;
 		if (computedExpressions == null) {
 			if (other.computedExpressions != null)
 				return false;

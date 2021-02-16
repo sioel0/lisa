@@ -1,6 +1,6 @@
 package it.unive.lisa.symbolic.value;
 
-import it.unive.lisa.cfg.type.Type;
+import it.unive.lisa.type.Type;
 import it.unive.lisa.util.collections.ExternalSet;
 
 /**
@@ -17,7 +17,7 @@ public class ValueIdentifier extends Identifier {
 	 * @param name  the name of the identifier
 	 */
 	public ValueIdentifier(ExternalSet<Type> types, String name) {
-		super(types, name);
+		super(types, name, false);
 	}
 
 	@Override

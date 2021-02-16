@@ -1,29 +1,41 @@
 class expressions {
 	assignment() {
-		i = 5;
-		x = "s";
+		def i = 5;
+		def x = "s";
 	}
 	
-	_throw() {
-		throw x;
+	_throw1(x, i) {
 		throw i;
 	}
 
-	_return() {
+	_throw2(x, i) {
+		throw x;
+	}
+
+	_return1(x, i) {
 		return i;
+	}
+	
+	_return2(x, i) {
 		return x;
 	}
 
-	call() {
+	call(i) {
 		this.test(5);
 		this.test(i, 5);
 	}
 
-	nestedCall() {
+	nestedCall1(i, x) {
 		this.test(5, this.test(i, 5));
 		this.test(x, this.test(i));
-		return this.test(i);
-		throw this.test(i);
 		x = this.test(i);
+	}
+	
+	nestedCall2(i, x) {
+		return this.test(i);
+	}
+	
+	nestedCall3(i, x) {
+		throw this.test(i);
 	}
 }

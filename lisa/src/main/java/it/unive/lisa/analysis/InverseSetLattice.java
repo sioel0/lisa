@@ -1,7 +1,9 @@
 package it.unive.lisa.analysis;
 
+import it.unive.lisa.util.collections.Utils;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * A generic inverse set lattice containing a set of elements. Lattice
@@ -94,6 +96,15 @@ public abstract class InverseSetLattice<S extends InverseSetLattice<S, E>, E> ex
 
 	@Override
 	public final String toString() {
-		return isTop() ? "TOP" : isBottom() ? "BOTTOM" : elements.toString();
+		if (isTop())
+			return Lattice.TOP_STRING;
+
+		if (isBottom())
+			return Lattice.BOTTOM_STRING;
+
+		Set<E> tmp = new TreeSet<>(
+				(l, r) -> Utils.nullSafeCompare(true, l, r, (ll, rr) -> ll.toString().compareTo(rr.toString())));
+		tmp.addAll(elements);
+		return tmp.toString();
 	}
 }

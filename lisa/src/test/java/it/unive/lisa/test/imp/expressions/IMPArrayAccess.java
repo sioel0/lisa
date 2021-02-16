@@ -1,13 +1,14 @@
 package it.unive.lisa.test.imp.expressions;
 
+import it.unive.lisa.analysis.AbstractState;
 import it.unive.lisa.analysis.AnalysisState;
 import it.unive.lisa.analysis.HeapDomain;
 import it.unive.lisa.analysis.SemanticException;
 import it.unive.lisa.analysis.ValueDomain;
 import it.unive.lisa.callgraph.CallGraph;
-import it.unive.lisa.cfg.CFG;
-import it.unive.lisa.cfg.statement.BinaryNativeCall;
-import it.unive.lisa.cfg.statement.Expression;
+import it.unive.lisa.program.cfg.CFG;
+import it.unive.lisa.program.cfg.statement.BinaryNativeCall;
+import it.unive.lisa.program.cfg.statement.Expression;
 import it.unive.lisa.symbolic.SymbolicExpression;
 import it.unive.lisa.symbolic.heap.AccessChild;
 
@@ -36,15 +37,22 @@ public class IMPArrayAccess extends BinaryNativeCall {
 	}
 
 	@Override
-	protected <H extends HeapDomain<H>, V extends ValueDomain<V>> AnalysisState<H, V> binarySemantics(
-			AnalysisState<H, V> computedState, CallGraph callGraph, SymbolicExpression left, SymbolicExpression right)
-			throws SemanticException {
+	protected <A extends AbstractState<A, H, V>,
+			H extends HeapDomain<H>,
+			V extends ValueDomain<V>> AnalysisState<A, H, V> binarySemantics(
+					AnalysisState<A, H, V> entryState, CallGraph callGraph,
+					AnalysisState<A, H, V> leftState,
+					SymbolicExpression left,
+					AnalysisState<A, H, V> rightState,
+					SymbolicExpression right)
+
+					throws SemanticException {
 		if (!left.getDynamicType().isArrayType() || !left.getDynamicType().isUntyped())
-			return computedState.bottom();
+			return entryState.bottom();
 		// it is not possible to detect the correct type of the field without
 		// resolving it. we rely on the rewriting that will happen inside heap
 		// domain to translate this into a variable that will have its correct
 		// type
-		return computedState.smallStepSemantics(new AccessChild(getRuntimeTypes(), left, right));
+		return rightState.smallStepSemantics(new AccessChild(getRuntimeTypes(), left, right), this);
 	}
 }

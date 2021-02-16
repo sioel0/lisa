@@ -1,19 +1,22 @@
 package it.unive.lisa.callgraph;
 
+import it.unive.lisa.DefaultImplementation;
+import it.unive.lisa.analysis.AbstractState;
 import it.unive.lisa.analysis.AnalysisState;
 import it.unive.lisa.analysis.CFGWithAnalysisResults;
 import it.unive.lisa.analysis.HeapDomain;
 import it.unive.lisa.analysis.SemanticException;
 import it.unive.lisa.analysis.ValueDomain;
-import it.unive.lisa.cfg.CFG;
-import it.unive.lisa.cfg.CFG.SemanticFunction;
-import it.unive.lisa.cfg.FixpointException;
-import it.unive.lisa.cfg.statement.CFGCall;
-import it.unive.lisa.cfg.statement.Call;
-import it.unive.lisa.cfg.statement.OpenCall;
-import it.unive.lisa.cfg.statement.UnresolvedCall;
+import it.unive.lisa.callgraph.impl.intraproc.IntraproceduralCallGraph;
+import it.unive.lisa.program.Program;
+import it.unive.lisa.program.cfg.CFG;
+import it.unive.lisa.program.cfg.statement.CFGCall;
+import it.unive.lisa.program.cfg.statement.Call;
+import it.unive.lisa.program.cfg.statement.OpenCall;
+import it.unive.lisa.program.cfg.statement.UnresolvedCall;
 import it.unive.lisa.symbolic.SymbolicExpression;
 import it.unive.lisa.symbolic.value.Identifier;
+import it.unive.lisa.util.datastructures.graph.FixpointException;
 import java.util.Collection;
 
 /**
@@ -22,53 +25,59 @@ import java.util.Collection;
  * 
  * @author <a href="mailto:luca.negrini@unive.it">Luca Negrini</a>
  */
+@DefaultImplementation(IntraproceduralCallGraph.class)
 public interface CallGraph {
 
 	/**
-	 * Adds a new cfg to this call graph.
+	 * Builds the call graph of the given program.
 	 * 
-	 * @param cfg the cfg to add
+	 * @param program the program to analyze
+	 * 
+	 * @throws CallGraphConstructionException if an exception happens while
+	 *                                            building the call graph
 	 */
-	void addCFG(CFG cfg);
+	void build(Program program) throws CallGraphConstructionException;
 
 	/**
 	 * Yields a {@link Call} implementation that corresponds to the resolution
 	 * of the given {@link UnresolvedCall}. This method will return:
 	 * <ul>
 	 * <li>a {@link CFGCall}, if at least one {@link CFG} that matches
-	 * {@link UnresolvedCall#getQualifiedName()} is found. The returned
+	 * {@link UnresolvedCall#getTargetName()} is found. The returned
 	 * {@link CFGCall} will be linked to all the possible runtime targets
-	 * matching {@link UnresolvedCall#getQualifiedName()};</li>
+	 * matching {@link UnresolvedCall#getTargetName()};</li>
 	 * <li>an {@link OpenCall}, if no {@link CFG} matching
-	 * {@link UnresolvedCall#getQualifiedName()} is found.</li>
+	 * {@link UnresolvedCall#getTargetName()} is found.</li>
 	 * </ul>
 	 * 
 	 * @param call the call to resolve
 	 * 
 	 * @return a collection of all the possible runtime targets
+	 * 
+	 * @throws CallResolutionException if this call graph is unable to resolve
+	 *                                     the given call
 	 */
-	Call resolve(UnresolvedCall call);
+	Call resolve(UnresolvedCall call) throws CallResolutionException;
 
 	/**
 	 * Computes a fixpoint over the whole control flow graph, producing a
 	 * {@link CFGWithAnalysisResults} for each {@link CFG} contained in this
 	 * callgraph. Each result is computed with
-	 * {@link CFG#fixpoint(AnalysisState, CallGraph, SemanticFunction)} or one
-	 * of its overloads. Results of individual cfgs are then available through
+	 * {@link CFG#fixpoint(AnalysisState, CallGraph)} or one of its overloads.
+	 * Results of individual cfgs are then available through
 	 * {@link #getAnalysisResultsOf(CFG)}.
 	 * 
+	 * @param <A>        the type of {@link AbstractState} to compute
 	 * @param <H>        the type of {@link HeapDomain} to compute
 	 * @param <V>        the type of {@link ValueDomain} to compute
 	 * @param entryState the entry state for the {@link CFG}s that are the
 	 *                       entrypoints of the computation
-	 * @param semantics  the {@link SemanticFunction} that will be used for
-	 *                       computing the abstract post-state of statements
 	 * 
 	 * @throws FixpointException if something goes wrong while evaluating the
 	 *                               fixpoint
 	 */
-	<H extends HeapDomain<H>, V extends ValueDomain<V>> void fixpoint(AnalysisState<H, V> entryState,
-			SemanticFunction<H, V> semantics)
+	<A extends AbstractState<A, H, V>, H extends HeapDomain<H>, V extends ValueDomain<V>> void fixpoint(
+			AnalysisState<A, H, V> entryState)
 			throws FixpointException;
 
 	/**
@@ -76,6 +85,8 @@ public interface CallGraph {
 	 * given {@link CFG}. Results are provided as
 	 * {@link CFGWithAnalysisResults}.
 	 * 
+	 * @param <A> the type of {@link AbstractState} contained into the analysis
+	 *                state
 	 * @param <H> the type of {@link HeapDomain} contained into the computed
 	 *                abstract state
 	 * @param <V> the type of {@link ValueDomain} contained into the computed
@@ -85,12 +96,14 @@ public interface CallGraph {
 	 * @return the result of the fixpoint computation of {@code valueDomain}
 	 *             over {@code cfg}
 	 */
-	<H extends HeapDomain<H>, V extends ValueDomain<V>> CFGWithAnalysisResults<H, V> getAnalysisResultsOf(CFG cfg);
+	<A extends AbstractState<A, H, V>,
+			H extends HeapDomain<H>,
+			V extends ValueDomain<V>> CFGWithAnalysisResults<A, H, V> getAnalysisResultsOf(CFG cfg);
 
 	/**
 	 * Clears all the data from the last fixpoint computation, effectively
-	 * re-initializing the call graph. The set of {@link CFG} under analysis
-	 * (added through {@link #addCFG(CFG)}) is not lost.
+	 * re-initializing the call graph. The call graph structure obtained throug
+	 * {@link #build(Program)} is not lost.
 	 */
 	void clear();
 
@@ -101,6 +114,8 @@ public interface CallGraph {
 	 * parameters. The abstract value of each parameter is computed on
 	 * {@code entryState}.
 	 * 
+	 * @param <A>        the type of {@link AbstractState} contained into the
+	 *                       analysis state
 	 * @param <H>        the type of {@link HeapDomain} contained into the
 	 *                       computed abstract state
 	 * @param <V>        the type of {@link ValueDomain} contained into the
@@ -118,6 +133,9 @@ public interface CallGraph {
 	 * 
 	 * @throws SemanticException if something goes wrong during the computation
 	 */
-	<H extends HeapDomain<H>, V extends ValueDomain<V>> AnalysisState<H, V> getAbstractResultOf(CFGCall call,
-			AnalysisState<H, V> entryState, Collection<SymbolicExpression>[] parameters) throws SemanticException;
+	<A extends AbstractState<A, H, V>,
+			H extends HeapDomain<H>,
+			V extends ValueDomain<V>> AnalysisState<A, H, V> getAbstractResultOf(CFGCall call,
+					AnalysisState<A, H, V> entryState, Collection<SymbolicExpression>[] parameters)
+					throws SemanticException;
 }

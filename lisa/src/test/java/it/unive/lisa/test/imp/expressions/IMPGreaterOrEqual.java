@@ -1,19 +1,20 @@
 package it.unive.lisa.test.imp.expressions;
 
+import it.unive.lisa.analysis.AbstractState;
 import it.unive.lisa.analysis.AnalysisState;
 import it.unive.lisa.analysis.HeapDomain;
 import it.unive.lisa.analysis.SemanticException;
 import it.unive.lisa.analysis.ValueDomain;
 import it.unive.lisa.caches.Caches;
 import it.unive.lisa.callgraph.CallGraph;
-import it.unive.lisa.cfg.CFG;
-import it.unive.lisa.cfg.statement.BinaryNativeCall;
-import it.unive.lisa.cfg.statement.Expression;
-import it.unive.lisa.cfg.type.NumericType;
+import it.unive.lisa.program.cfg.CFG;
+import it.unive.lisa.program.cfg.statement.BinaryNativeCall;
+import it.unive.lisa.program.cfg.statement.Expression;
 import it.unive.lisa.symbolic.SymbolicExpression;
 import it.unive.lisa.symbolic.value.BinaryExpression;
 import it.unive.lisa.symbolic.value.BinaryOperator;
 import it.unive.lisa.test.imp.types.BoolType;
+import it.unive.lisa.type.NumericType;
 
 /**
  * An expression modeling the greater or equal operation ({@code >=}). Both
@@ -39,17 +40,24 @@ public class IMPGreaterOrEqual extends BinaryNativeCall {
 	}
 
 	@Override
-	protected <H extends HeapDomain<H>, V extends ValueDomain<V>> AnalysisState<H, V> binarySemantics(
-			AnalysisState<H, V> computedState, CallGraph callGraph, SymbolicExpression left, SymbolicExpression right)
-			throws SemanticException {
+	protected <A extends AbstractState<A, H, V>,
+			H extends HeapDomain<H>,
+			V extends ValueDomain<V>> AnalysisState<A, H, V> binarySemantics(
+					AnalysisState<A, H, V> entryState, CallGraph callGraph,
+					AnalysisState<A, H, V> leftState,
+					SymbolicExpression left,
+					AnalysisState<A, H, V> rightState,
+					SymbolicExpression right)
+
+					throws SemanticException {
 		// we allow untyped for the type inference phase
 		if (!left.getDynamicType().isNumericType() && !left.getDynamicType().isUntyped())
-			return computedState.bottom();
+			return entryState.bottom();
 		if (!right.getDynamicType().isNumericType() && !right.getDynamicType().isUntyped())
-			return computedState.bottom();
+			return entryState.bottom();
 
-		return computedState
+		return rightState
 				.smallStepSemantics(new BinaryExpression(Caches.types().mkSingletonSet(BoolType.INSTANCE), left, right,
-						BinaryOperator.COMPARISON_GE));
+						BinaryOperator.COMPARISON_GE), this);
 	}
 }

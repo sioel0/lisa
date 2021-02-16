@@ -1,15 +1,15 @@
 package it.unive.lisa.test.imp.expressions;
 
+import it.unive.lisa.analysis.AbstractState;
 import it.unive.lisa.analysis.AnalysisState;
-import it.unive.lisa.analysis.ExpressionStore;
 import it.unive.lisa.analysis.HeapDomain;
 import it.unive.lisa.analysis.SemanticException;
+import it.unive.lisa.analysis.StatementStore;
 import it.unive.lisa.analysis.ValueDomain;
-import it.unive.lisa.analysis.impl.types.TypeEnvironment;
 import it.unive.lisa.callgraph.CallGraph;
-import it.unive.lisa.cfg.CFG;
-import it.unive.lisa.cfg.statement.Expression;
-import it.unive.lisa.cfg.statement.Statement;
+import it.unive.lisa.program.cfg.CFG;
+import it.unive.lisa.program.cfg.statement.Expression;
+import it.unive.lisa.program.cfg.statement.UnaryStatement;
 import it.unive.lisa.symbolic.value.Skip;
 
 /**
@@ -17,9 +17,7 @@ import it.unive.lisa.symbolic.value.Skip;
  * 
  * @author <a href="mailto:luca.negrini@unive.it">Luca Negrini</a>
  */
-public class IMPAssert extends Statement {
-
-	private final Expression expression;
+public class IMPAssert extends UnaryStatement {
 
 	/**
 	 * Builds the assertion.
@@ -31,52 +29,26 @@ public class IMPAssert extends Statement {
 	 * @param expression the expression being asserted
 	 */
 	public IMPAssert(CFG cfg, String sourceFile, int line, int col, Expression expression) {
-		super(cfg, sourceFile, line, col);
-		this.expression = expression;
-	}
-
-	@Override
-	public int setOffset(int offset) {
-		return this.offset = offset;
+		super(cfg, sourceFile, line, col, expression);
 	}
 
 	@Override
 	public String toString() {
-		return "assert " + expression;
-	}
-
-	/**
-	 * Yields the expression being asserted.
-	 * 
-	 * @return the expression
-	 */
-	public Expression getExpression() {
-		return expression;
+		return "assert " + getExpression();
 	}
 
 	@Override
-	public <H extends HeapDomain<H>> AnalysisState<H, TypeEnvironment> typeInference(
-			AnalysisState<H, TypeEnvironment> entryState, CallGraph callGraph,
-			ExpressionStore<AnalysisState<H, TypeEnvironment>> expressions) throws SemanticException {
-		AnalysisState<H, TypeEnvironment> result = expression.typeInference(entryState, callGraph, expressions);
-		expressions.put(expression, result);
-		if (!expression.getMetaVariables().isEmpty())
-			result = result.forgetIdentifiers(expression.getMetaVariables());
-		if (!expression.getDynamicType().isBooleanType())
+	public <A extends AbstractState<A, H, V>,
+			H extends HeapDomain<H>,
+			V extends ValueDomain<V>> AnalysisState<A, H, V> semantics(
+					AnalysisState<A, H, V> entryState, CallGraph callGraph, StatementStore<A, H, V> expressions)
+					throws SemanticException {
+		AnalysisState<A, H, V> result = getExpression().semantics(entryState, callGraph, expressions);
+		expressions.put(getExpression(), result);
+		if (!getExpression().getMetaVariables().isEmpty())
+			result = result.forgetIdentifiers(getExpression().getMetaVariables());
+		if (!getExpression().getDynamicType().isBooleanType())
 			return result.bottom();
-		return result.smallStepSemantics(new Skip());
-	}
-
-	@Override
-	public <H extends HeapDomain<H>, V extends ValueDomain<V>> AnalysisState<H, V> semantics(
-			AnalysisState<H, V> entryState, CallGraph callGraph, ExpressionStore<AnalysisState<H, V>> expressions)
-			throws SemanticException {
-		AnalysisState<H, V> result = expression.semantics(entryState, callGraph, expressions);
-		expressions.put(expression, result);
-		if (!expression.getMetaVariables().isEmpty())
-			result = result.forgetIdentifiers(expression.getMetaVariables());
-		if (!expression.getDynamicType().isBooleanType())
-			return result.bottom();
-		return result.smallStepSemantics(new Skip());
+		return result.smallStepSemantics(new Skip(), this);
 	}
 }
