@@ -37,10 +37,9 @@ LiSA comes as a gradle 6.0 project. After cloning the repository with `git clone
 <div id="IntelliJIDEA" class="tabcontent">
 	There are two ways to import the project:
 	<ul>
-		<li> <code>File -> New Project from Version Control...</code> and then fill the URL with LiSA's Github repository (that is, <code>https://github.com/UniVE-SSV/lisa</code>)
-		<li> Clone the repository in a local directory, and then select this directory from <code>File -> Open...</code>
+		<li> <code>File -> New Project from Version Control...</code> and then fill the URL with LiSA's Github repository (that is, <code>https://github.com/UniVE-SSV/lisa</code>)</li>
+		<li> Clone the repository in a local directory, and then select this directory from <code>File -> Open...</code></li>
 	</ul>
-	<br><br>
 	When opening the project for the first time, in the bottom righ part of the window a pop up <code>Gradle build script found</code> will appear. Select <code>Import</code> and the build process will start. This start might take several minutes since it might need to download some plugins and libraries. At the end, the project will compile correctly and all the Gradle tasks can be run.
 </div>
 
