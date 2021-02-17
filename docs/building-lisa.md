@@ -4,6 +4,7 @@ LiSA comes as a gradle 6.0 project. After cloning the repository with `git clone
 
 <div class="tab">
   <button class="tablinks active" onclick="openTab(event, 'Eclipse')">Eclipse</button>
+  <button class="tablinks" onclick="openTab(event, 'IntelliJIDEA')">IntelliJ IDEA</button>
   <button class="tablinks" onclick="openTab(event, 'Windows')">Windows</button>
   <button class="tablinks" onclick="openTab(event, 'Linux')">Mac/Linux</button>
 </div>
@@ -30,6 +31,17 @@ LiSA comes as a gradle 6.0 project. After cloning the repository with `git clone
 	</table>
 	<br>
 	<b>Caution 2</b>: sometimes (e.g., when adding new dependencies to the project) the plugin does not automatically refresh the Gradle configuration, and thus the build might fail due to missing dependencies or to files not being generated. If this happens, right click on the <code>lisa</code> project inside the Project Explorer view (<code>Window -> Show View -> Other... -> Project Explorer</code>) or inside the Package Explorer view (<code>Window -> Show View -> Other... -> Package Explorer</code>) and select <code>Gradle -> Refresh Gradle project</code>.
+</div>
+
+
+<div id="IntelliJIDEA" class="tabcontent">
+	There are two ways to import the project:
+	<ul>
+		<li> <code>File -> New Project from Version Control...</code> and then fill the URL with LiSA's Github repository (that is, <code>https://github.com/UniVE-SSV/lisa</code>)
+		<li> Clone the repository in a local directory, and then select this directory from <code>File -> Open...</code>
+	</ul>
+	<br><br>
+	When opening the project for the first time, in the bottom righ part of the window a pop up <code>Gradle build script found</code> will appear. Select <code>Import</code> and the build process will start. This start might take several minutes since it might need to download some plugins and libraries. At the end, the project will compile correctly and all the Gradle tasks can be run.
 </div>
 
 <div id="Windows" class="tabcontent">
