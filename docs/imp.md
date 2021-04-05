@@ -154,7 +154,16 @@ An expression can be:
 * another method call
 12. an assignment: `x = 15`, where the left-hand side can be a local variable, a field access or an array access, and the right-hand side is an expression
 13. a string concatenation: `str + "foo"`, where the operands are expressions
-
+14. a receiver-less call to a string manipulating method, where each argument might be a string literal (or integer, in some operations), a variable, a field access, an array access or a method call: 
+* `strlen(a)` returns the integer length of the string represented by `a`
+* `strcat(a, b)` returns the concatenations of the strings represented by `a` and `b`
+* `strindex(a, b)` returns the integer index of the first occurrence of the string represented by `b` inside the string represented by `a`
+* `streq(a, b)` returns `true` if the contents of the strings represented by `a` and `b` are equal
+* `strcon(a, b)` returns `true` if the string represented by `b` is contained into the string represented by `a`
+* `strstarts(a, b)` returns `true` if the string represented by `a` starts with the string represented by `b`
+* `strends(a, b)` returns `true` if the string represented by `a` ends with the string represented by `b`
+* `strrep(a, b, c)` returns a new string that is equal to the one represented by `a` where each occurrence of the string represented by `b` is replaced with the string represented by `c`
+* `strsub(a, i, j)` returns the substring of the string represented by  `a`, starting from the position represented by `i` (inclusive) and ending at the position represented by `j` (exclusive)
 
 Note that expressions can also be grouped between parentheses. 
 
