@@ -4,6 +4,18 @@ The following releases have a published javadoc.
 
 ## Alpha releases
 
+### 0.1a4
+
+Heap domains.
+
+[Release](https://github.com/UniVE-SSV/lisa/releases/tag/v0.1a4) - [Javadoc](https://www.javadoc.io/doc/com.github.unive-ssv/lisa/0.1a4/index.html)
+
+### 0.1a3
+
+Inference systems, dataflow interface, and preliminary program structure.
+
+[Release](https://github.com/UniVE-SSV/lisa/releases/tag/v0.1a3) - [Javadoc](https://www.javadoc.io/doc/com.github.unive-ssv/lisa/0.1a3/index.html)
+
 ### 0.1a2
 
 Complete prototype of the structure of the library, including the definition of call graphs and heap abstractions, type hierarchy, and type inference.
