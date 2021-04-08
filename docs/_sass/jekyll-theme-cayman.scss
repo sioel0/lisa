@@ -107,12 +107,11 @@ a {
 
 .page-header {
   color: $header-heading-color;
-  text-align: center;
   background-color: $header-bg-color;
   background-image: linear-gradient(120deg, $header-bg-color-secondary, $header-bg-color);
 
   @include large {
-    padding: 5rem 6rem;
+    padding: 0.5rem 3rem;
   }
 
   @include medium {
@@ -124,9 +123,49 @@ a {
   }
 }
 
+.header-wrapper {
+  @include large {
+    display: flex;
+  }
+
+  @include medium {
+  }
+
+  @include small {
+  }
+}
+
+.title-wrapper {
+  @include large {
+    flex: 3;
+  }
+
+  @include medium {
+  }
+
+  @include small {
+	text-align: center;
+  }
+}
+
+.buttons-wrapper {
+  @include large {
+    flex: initial;
+	margin-top: auto;
+  }
+
+  @include medium {
+  }
+
+  @include small {
+	text-align: center;
+  }
+}
+
 .project-name {
   margin-top: 0;
   margin-bottom: 0.1rem;
+  margin-right: 1rem;
 
   @include large {
     font-size: 3.25rem;
@@ -147,11 +186,11 @@ a {
   opacity: 0.7;
 
   @include large {
-    font-size: 1.25rem;
+    font-size: 2rem;
   }
 
   @include medium {
-    font-size: 1.15rem;
+    font-size: 1.25rem;
   }
 
   @include small {
