@@ -1,6 +1,6 @@
 # The IMP Language
 
-IMP is a high-level, imperative, and dynamic programming language. It is inspired by Java.
+IMP is a high-level, imperative, and dynamic programming language inspired by Java. IMP is used as main testing language in LiSA.
 
 ## Typing
 

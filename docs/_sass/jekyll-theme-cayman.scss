@@ -220,7 +220,7 @@ a {
   }
 
   @include small {
-    padding: 2rem 1rem;
+    padding: 1rem 1rem;
     font-size: 1rem;
   }
   
@@ -610,4 +610,75 @@ html {
 
 .tabcontent.active {
 	display: block;
+}
+
+.head-menu {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 0 6rem;
+	margin: 0 auto;
+	border-bottom: .0625rem solid #e5e5e5;
+	
+	@include large {
+		max-width: 60%;
+    }
+
+	@include medium {
+	}
+
+	@include small {
+	  display: none;
+	  padding: 0;
+	}
+}
+
+.head-menu-visible #headmenu {
+	display: block;
+}
+
+.head-menu-item {
+	padding-top: .9rem;
+	padding-bottom: .9rem;
+	padding-right: 1rem;
+	list-style: none;
+	a {
+		text-decoration: none;
+	}
+	@include small {
+		padding: .25rem 0rem;
+	}
+}
+
+.head-menu-item a {
+	color: $body-text-color;
+}
+
+.active-menu-item a {
+	color: $section-headings-color;
+}
+
+#togglemenu {
+	display: none; 
+	cursor: pointer;
+	color: $section-headings-color;
+	text-decoration: none;
+	
+	text-align: right;
+    padding-right: 1rem;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+	border-bottom: .0625rem solid #e5e5e5;
+	
+	@include small {
+	  display: block;
+	}
+}
+
+#breadcrumbs {
+	font-size: 1rem;
+	color: $body-text-color;
+	a {
+		color: $section-headings-color;
+	}
 }

@@ -1,6 +1,7 @@
 # Releases
 
-The following releases have a published javadoc.
+The following releases have been made publicly available. For each of them, a link to the GitHub release page, containing links to the artifacts, 
+and a link to the javadoc documentation are available.
 
 ## Alpha releases
 

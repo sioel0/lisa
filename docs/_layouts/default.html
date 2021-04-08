@@ -81,15 +81,15 @@
  	    </ul>
 	  </div>
 	  {% endunless %}
-
+	  
+	{% include toggle-menu.html %}
+	{% include simple-menu.html %}
     <main id="content" class="main-content" role="main">  
-
+	  
 	  {% unless page.notoc %}
-	  <span onclick="openNav('overview')" class="clickable-span" style="float: left;"><i class="fas fa-chevron-left"></i> Overview</span>
-	  <span onclick="openNav('toc')" class="clickable-span" style="float: right;">On this page <i class="fas fa-chevron-right"></i></span>
-	  <br>
+		{% include breadcrumbs.html %}
 	  {% endunless %}
-	
+	  
 	  {{ content }}
 
 	  <button onclick="topFunction()" id="backToTopBtn" title="Go to top"><i class="fas fa-angle-double-up"></i></button>
