@@ -2,15 +2,16 @@ package it.unive.lisa.program.cfg.statement;
 
 import it.unive.lisa.analysis.AbstractState;
 import it.unive.lisa.analysis.AnalysisState;
-import it.unive.lisa.analysis.HeapDomain;
 import it.unive.lisa.analysis.SemanticException;
 import it.unive.lisa.analysis.StatementStore;
-import it.unive.lisa.analysis.ValueDomain;
+import it.unive.lisa.analysis.heap.HeapDomain;
+import it.unive.lisa.analysis.value.ValueDomain;
 import it.unive.lisa.callgraph.CallGraph;
 import it.unive.lisa.program.cfg.CFG;
+import it.unive.lisa.program.cfg.CodeLocation;
 import it.unive.lisa.symbolic.SymbolicExpression;
 import it.unive.lisa.symbolic.value.Identifier;
-import it.unive.lisa.symbolic.value.ValueIdentifier;
+import it.unive.lisa.symbolic.value.Variable;
 
 /**
  * Returns an expression to the caller CFG, terminating the execution of the CFG
@@ -30,7 +31,7 @@ public class Return extends UnaryStatement implements MetaVariableCreator {
 	 * @param expression the expression to return
 	 */
 	public Return(CFG cfg, Expression expression) {
-		this(cfg, null, -1, -1, expression);
+		this(cfg, null, expression);
 	}
 
 	/**
@@ -38,16 +39,12 @@ public class Return extends UnaryStatement implements MetaVariableCreator {
 	 * happening at the given location in the program.
 	 * 
 	 * @param cfg        the cfg that this statement belongs to
-	 * @param sourceFile the source file where this statement happens. If
-	 *                       unknown, use {@code null}
-	 * @param line       the line number where this statement happens in the
-	 *                       source file. If unknown, use {@code -1}
-	 * @param col        the column where this statement happens in the source
-	 *                       file. If unknown, use {@code -1}
+	 * @param location   the location where this statement is defined within the
+	 *                       source file. If unknown, use {@code null}
 	 * @param expression the expression to return
 	 */
-	public Return(CFG cfg, String sourceFile, int line, int col, Expression expression) {
-		super(cfg, sourceFile, line, col, expression);
+	public Return(CFG cfg, CodeLocation location, Expression expression) {
+		super(cfg, location, expression);
 	}
 
 	@Override
@@ -62,7 +59,7 @@ public class Return extends UnaryStatement implements MetaVariableCreator {
 
 	@Override
 	public final Identifier getMetaVariable() {
-		return new ValueIdentifier(getExpression().getRuntimeTypes(),
+		return new Variable(getExpression().getRuntimeTypes(),
 				"ret_value@" + getCFG().getDescriptor().getName());
 	}
 

@@ -1,7 +1,7 @@
 package it.unive.lisa.analysis.dataflow;
 
 import it.unive.lisa.analysis.SemanticException;
-import it.unive.lisa.analysis.SetLattice;
+import it.unive.lisa.analysis.lattices.SetLattice;
 import it.unive.lisa.program.cfg.ProgramPoint;
 import it.unive.lisa.symbolic.value.Identifier;
 import it.unive.lisa.symbolic.value.ValueExpression;
@@ -9,6 +9,8 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 /**
  * A {@link DataflowDomain} for <b>forward</b> and <b>possible</b> dataflow
@@ -19,9 +21,8 @@ import java.util.Set;
  * 
  * @param <E> the type of {@link DataflowElement} contained in this domain
  */
-public class PossibleForwardDataflowDomain<E extends DataflowElement<PossibleForwardDataflowDomain<E>, E>>
-		extends SetLattice<PossibleForwardDataflowDomain<E>, E>
-		implements DataflowDomain<PossibleForwardDataflowDomain<E>, E> {
+public class PossibleForwardDataflowDomain<E extends DataflowElement<PossibleForwardDataflowDomain<E>, E>> extends
+		SetLattice<PossibleForwardDataflowDomain<E>, E> implements DataflowDomain<PossibleForwardDataflowDomain<E>, E> {
 
 	private final boolean isTop;
 
@@ -46,6 +47,10 @@ public class PossibleForwardDataflowDomain<E extends DataflowElement<PossibleFor
 	@Override
 	public PossibleForwardDataflowDomain<E> assign(Identifier id, ValueExpression expression, ProgramPoint pp)
 			throws SemanticException {
+		// if id cannot be tracked by the underlying lattice,
+		// or if the expression cannot be processed, return this
+		if (!domain.tracksIdentifiers(id) || !domain.canProcess(expression))
+			return this;
 		PossibleForwardDataflowDomain<E> killed = forgetIdentifiers(domain.kill(id, expression, pp, this));
 		Set<E> updated = new HashSet<>(killed.elements);
 		for (E generated : domain.gen(id, expression, pp, this))
@@ -91,7 +96,9 @@ public class PossibleForwardDataflowDomain<E extends DataflowElement<PossibleFor
 
 	@Override
 	public String representation() {
-		return elements.toString();
+		SortedSet<String> res = new TreeSet<>();
+		elements.stream().map(e -> e.toString()).forEach(res::add);
+		return res.toString();
 	}
 
 	@Override

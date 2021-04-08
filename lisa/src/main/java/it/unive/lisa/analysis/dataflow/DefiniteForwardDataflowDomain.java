@@ -1,7 +1,7 @@
 package it.unive.lisa.analysis.dataflow;
 
-import it.unive.lisa.analysis.InverseSetLattice;
 import it.unive.lisa.analysis.SemanticException;
+import it.unive.lisa.analysis.lattices.InverseSetLattice;
 import it.unive.lisa.program.cfg.ProgramPoint;
 import it.unive.lisa.symbolic.value.Identifier;
 import it.unive.lisa.symbolic.value.ValueExpression;
@@ -9,6 +9,8 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 /**
  * A {@link DataflowDomain} for <b>forward</b> and <b>definite</b> dataflow
@@ -47,6 +49,10 @@ public class DefiniteForwardDataflowDomain<E extends DataflowElement<DefiniteFor
 	@Override
 	public DefiniteForwardDataflowDomain<E> assign(Identifier id, ValueExpression expression, ProgramPoint pp)
 			throws SemanticException {
+		// if id cannot be tracked by the underlying lattice,
+		// or if the expression cannot be processed, return this
+		if (!domain.tracksIdentifiers(id) || !domain.canProcess(expression))
+			return this;
 		DefiniteForwardDataflowDomain<E> killed = forgetIdentifiers(domain.kill(id, expression, pp, this));
 		Set<E> updated = new HashSet<>(killed.elements);
 		for (E generated : domain.gen(id, expression, pp, this))
@@ -92,7 +98,9 @@ public class DefiniteForwardDataflowDomain<E extends DataflowElement<DefiniteFor
 
 	@Override
 	public String representation() {
-		return elements.toString();
+		SortedSet<String> res = new TreeSet<>();
+		elements.stream().map(e -> e.toString()).forEach(res::add);
+		return res.toString();
 	}
 
 	@Override
