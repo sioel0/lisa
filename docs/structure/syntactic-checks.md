@@ -52,4 +52,4 @@ public class MultipleMainCheck implements SyntacticCheck {
 The above check exploits `beforeExecution` to setup the necessary `counter` field, and `afterExecution` to decide whether or not to emit a warning. `counter` is incremented inside `visitCFGDescriptor` each time a descriptor satisfying the desired condition is met.
 
 [syncheck]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/checks/syntactic/SyntacticCheck.java
-[tool]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/checks/CheckTool.java
+[tool]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/checks/syntactic/CheckTool.java

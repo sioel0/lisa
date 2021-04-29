@@ -73,7 +73,7 @@ Classes implementing the `SemanticDomain` interface represents entities that kno
 
 ## The Abstract State
 
-The Abstract State of LiSA's analysis is structured as defined in *Pietro Ferrara, A generic framework for heap and value analyses of object-oriented programming languages, Theoretical Computer Science, Volume 631, 2016, Pages 43-72* ([DOI](https://doi.org/10.1016/j.tcs.2016.04.001.), [link](http://www.sciencedirect.com/science/article/pii/S0304397516300299)). In this framework, the abstract state is composed of a heap abstraction ([HeapDomain][heapdom]) and a value abstrction ([ValueDomain][valuedom]), where the semantics of expressions is first evaluated on the heap abstraction, that rewrites the expression by removing all the bits regarding heap operations with symbolic identifiers (`HeapIdentifier`s in LiSA). The rewrtitten expression is then processed by the value abstraction.
+The Abstract State of LiSA's analysis is structured as defined in *Pietro Ferrara, A generic framework for heap and value analyses of object-oriented programming languages, Theoretical Computer Science, Volume 631, 2016, Pages 43-72* ([DOI](https://doi.org/10.1016/j.tcs.2016.04.001), [link](https://www.sciencedirect.com/science/article/pii/S0304397516300299)). In this framework, the abstract state is composed of a heap abstraction ([HeapDomain][heap]) and a value abstrction ([ValueDomain][value]), where the semantics of expressions is first evaluated on the heap abstraction, that rewrites the expression by removing all the bits regarding heap operations with symbolic identifiers (`HeapIdentifier`s in LiSA). The rewrtitten expression is then processed by the value abstraction.
 
 `HeapDomain` is an interface parametric on the concrete type `H` of the domain, and extends `Lattice<H>` and `SemanticDomain<H, SymbolicExpression, Identifier`, meaning that it can work on all `SymbolicExpression`s and can assign values to all types of `Identifier`s. It also extends the [HeapSemanticOperation][heapsemop] interface, meaning that il will provide rewritten expressions through method `getRewrittenExpressions()` (the returned collection usually contain a single expression, since expression rewriting is deterministc - more than one expression could be introduced through lattice operations, like least upper bound), and a substitution thorugh method `getSubstitution()`, yielding a list of materializations and summarizations of heap identifiers.
 
@@ -154,31 +154,29 @@ Registering an analysis for execution in LiSA is trivial:
 
 After registering all the desired domains, invoking `lisa.run()` will use `CallGraph`'s `fixpoint()` method to perform fixpoint computation on all CFGs, according to that `CallGraph`'s logic.
 
-**Note 1:** If no `CallGraph` is set for the analysis, or if no instances of `HeapDomain` and `NonRelationalHeapDomain` are registered, default implementations will be used. Current default implementation for `CallGraph` is [IntraproceduralCallGraph](https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/callgraph/impl/intraproc/IntraproceduralCallGraph.java). Current default implementation for `HeapDomain` is [MonolithicHeap](https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/analysis/heap/MonolithicHeap.java) (this will be overwritten by either providing a `HeapDomain` or a `NonRelationalHeapDomain`).
+**Note 1:** If no `CallGraph` is set for the analysis, or if no instances of `HeapDomain` and `NonRelationalHeapDomain` are registered, default implementations will be used. Current default implementation for `CallGraph` is [IntraproceduralCallGraph](https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/callgraph/impl/intraproc/IntraproceduralCallGraph.java). Current default implementation for `HeapDomain` is [MonolithicHeap](https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/analysis/impl/heap/MonolithicHeap.java) (this will be overwritten by either providing a `HeapDomain` or a `NonRelationalHeapDomain`).
 
 **Note 2:** It is suggested, but not required, that the instances of each component passed to the methods above represent the top element of the domain.
 
-[stmt]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/cfg/statement/Statement.java
-[expr]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/cfg/statement/Expression.java
-[assign]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/cfg/statement/Assignment.java
+[stmt]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/program/cfg/statement/Statement.java
+[expr]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/program/cfg/statement/Expression.java
+[assign]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/program/cfg/statement/Assignment.java
 [cg]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/callgraph/CallGraph.java
-[heap]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/analysis/HeapDomain.java
-[value]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/analysis/ValueDomain.java
+[heap]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/analysis/heap/HeapDomain.java
+[value]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/analysis/value/ValueDomain.java
 [symbolic]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/symbolic/SymbolicExpression.java 
 [lattice]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/analysis/Lattice.java 
 [semdom]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/analysis/SemanticDomain.java 
-[heapdom]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/analysis/HeapDomain.java 
-[valuedom]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/analysis/ValueDomain.java 
-[heapsemop]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/analysis/HeapSemanticOperation.java
+[heapsemop]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/analysis/heap/HeapSemanticOperation.java
 [absstate]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/analysis/AbstractState.java
-[heapenv]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/analysis/nonrelational/HeapEnvironment.java
-[valueenv]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/analysis/nonrelational/ValueEnvironment.java
+[heapenv]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/analysis/nonrelational/heap/HeapEnvironment.java
+[valueenv]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/analysis/nonrelational/value/ValueEnvironment.java
 [nonrel]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/analysis/nonrelational/NonRelationalDomain.java
-[nonrelheap]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/analysis/nonrelational/NonRelationalHeapDomain.java
-[nonrelvalue]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/analysis/nonrelational/NonRelationalValueDomain.java
+[nonrelheap]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/analysis/nonrelational/heap/NonRelationalHeapDomain.java
+[nonrelvalue]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/analysis/nonrelational/value/NonRelationalValueDomain.java
 [analysisstate]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/analysis/AnalysisState.java
 [callgraph]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/callgraph/CallGraph.java
-[call]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/cfg/statement/Call.java
-[nativecall]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/cfg/statement/NativeCall.java
-[unnativecall]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/cfg/statement/UnaryNativeCall.java
-[binnativecall]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/cfg/statement/BinaryNativeCall.java
+[call]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/program/cfg/statement/Call.java
+[nativecall]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/program/cfg/statement/NativeCall.java
+[unnativecall]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/program/cfg/statement/UnaryNativeCall.java
+[binnativecall]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/program/cfg/statement/BinaryNativeCall.java
