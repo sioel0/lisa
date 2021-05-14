@@ -9,9 +9,13 @@ import it.unive.lisa.analysis.StatementStore;
 import it.unive.lisa.analysis.heap.HeapDomain;
 import it.unive.lisa.analysis.lattices.FunctionalLattice;
 import it.unive.lisa.analysis.value.ValueDomain;
-import it.unive.lisa.callgraph.CallGraph;
+import it.unive.lisa.interprocedural.InterproceduralAnalysis;
 import it.unive.lisa.outputs.DotCFG;
 import it.unive.lisa.program.ProgramValidationException;
+import it.unive.lisa.program.cfg.controlFlow.ControlFlowExtractor;
+import it.unive.lisa.program.cfg.controlFlow.ControlFlowStructure;
+import it.unive.lisa.program.cfg.controlFlow.IfThenElse;
+import it.unive.lisa.program.cfg.controlFlow.Loop;
 import it.unive.lisa.program.cfg.edge.Edge;
 import it.unive.lisa.program.cfg.edge.SequentialEdge;
 import it.unive.lisa.program.cfg.statement.Expression;
@@ -26,6 +30,7 @@ import it.unive.lisa.util.datastructures.graph.FixpointGraph;
 import it.unive.lisa.util.workset.FIFOWorkingSet;
 import it.unive.lisa.util.workset.WorkingSet;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -33,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
@@ -54,6 +60,17 @@ public class CFG extends FixpointGraph<CFG, Statement, Edge> implements CodeMemb
 	private final CFGDescriptor descriptor;
 
 	/**
+	 * The control flow structures of this cfg
+	 */
+	private final Collection<ControlFlowStructure> cfStructs;
+
+	/**
+	 * Whether or not an attempt at extracting control flow structures from the
+	 * cfg has already been performed
+	 */
+	private boolean cfsExtracted;
+
+	/**
 	 * Builds the control flow graph.
 	 * 
 	 * @param descriptor the descriptor of this cfg
@@ -61,6 +78,8 @@ public class CFG extends FixpointGraph<CFG, Statement, Edge> implements CodeMemb
 	public CFG(CFGDescriptor descriptor) {
 		super();
 		this.descriptor = descriptor;
+		this.cfStructs = new LinkedList<>();
+		this.cfsExtracted = false;
 	}
 
 	/**
@@ -76,6 +95,8 @@ public class CFG extends FixpointGraph<CFG, Statement, Edge> implements CodeMemb
 			AdjacencyMatrix<Statement, Edge, CFG> adjacencyMatrix) {
 		super(entrypoints, adjacencyMatrix);
 		this.descriptor = descriptor;
+		this.cfStructs = new LinkedList<>();
+		this.cfsExtracted = false;
 	}
 
 	/**
@@ -86,6 +107,8 @@ public class CFG extends FixpointGraph<CFG, Statement, Edge> implements CodeMemb
 	protected CFG(CFG other) {
 		super(other.entrypoints, other.adjacencyMatrix);
 		this.descriptor = other.descriptor;
+		this.cfStructs = other.cfStructs;
+		this.cfsExtracted = other.cfsExtracted;
 	}
 
 	/**
@@ -125,6 +148,43 @@ public class CFG extends FixpointGraph<CFG, Statement, Edge> implements CodeMemb
 				.collect(Collectors.toList());
 	}
 
+	/**
+	 * Adds the given {@link ControlFlowStructure} to the ones contained in this
+	 * cfg.
+	 * 
+	 * @param cf the control flow structure to add
+	 * 
+	 * @throws IllegalArgumentException if a control flow structure for the same
+	 *                                      condition already exists
+	 */
+	public final void addControlFlowStructure(ControlFlowStructure cf) {
+		if (cfStructs.stream().anyMatch(c -> c.getCondition().equals(cf.getCondition())))
+			throw new IllegalArgumentException(
+					"Cannot have more than one conditional structure happening on the same condition: "
+							+ cf.getCondition());
+		cfStructs.add(cf);
+	}
+
+	/**
+	 * Yields the collection of {@link ControlFlowStructure}s contained in this
+	 * cfg.<br>
+	 * <br>
+	 * Note that if no control flow structures have been provided by frontends,
+	 * and no attempt at extracting them has been made yet, invoking this method
+	 * will cause a {@link ControlFlowExtractor} to try to extract them.
+	 * 
+	 * @return the collection, either provided by frontends or extracted, of the
+	 *             control flow structures of this method
+	 */
+	public Collection<ControlFlowStructure> getControlFlowStructures() {
+		if (cfStructs.isEmpty() && !cfsExtracted) {
+			new ControlFlowExtractor(this).extract().forEach(cfStructs::add);
+			cfsExtracted = true;
+		}
+
+		return cfStructs;
+	}
+
 	@Override
 	public int hashCode() {
 		final int prime = 31;
@@ -150,7 +210,8 @@ public class CFG extends FixpointGraph<CFG, Statement, Edge> implements CodeMemb
 	 *                                           non-sequential edge.
 	 */
 	public void simplify() {
-		super.simplify(NoOp.class);
+		super.simplify(NoOp.class, new LinkedList<>(), new HashMap<>());
+		cfStructs.forEach(ControlFlowStructure::simplify);
 	}
 
 	/**
@@ -164,21 +225,23 @@ public class CFG extends FixpointGraph<CFG, Statement, Edge> implements CodeMemb
 	 * processed. After overcoming that threshold,
 	 * {@link Lattice#widening(Lattice)} is used. The computation starts at the
 	 * statements returned by {@link #getEntrypoints()}, using
-	 * {@code entryState} as entry state for all of them. {@code cg} will be
-	 * invoked to get the approximation of all invoked cfgs, while a fresh
-	 * instance of {@link FIFOWorkingSet} is used as working set for the
-	 * statements to process.
+	 * {@code entryState} as entry state for all of them.
+	 * {@code interprocedural} will be invoked to get the approximation of all
+	 * invoked cfgs, while a fresh instance of {@link FIFOWorkingSet} is used as
+	 * working set for the statements to process.
 	 * 
-	 * @param <A>        the type of {@link AbstractState} contained into the
-	 *                       analysis state
-	 * @param <H>        the type of {@link HeapDomain} contained into the
-	 *                       computed abstract state
-	 * @param <V>        the type of {@link ValueDomain} contained into the
-	 *                       computed abstract state
-	 * @param entryState the entry states to apply to each {@link Statement}
-	 *                       returned by {@link #getEntrypoints()}
-	 * @param cg         the callgraph that can be queried when a call towards
-	 *                       an other cfg is encountered
+	 * @param <A>             the type of {@link AbstractState} contained into
+	 *                            the analysis state
+	 * @param <H>             the type of {@link HeapDomain} contained into the
+	 *                            computed abstract state
+	 * @param <V>             the type of {@link ValueDomain} contained into the
+	 *                            computed abstract state
+	 * @param entryState      the entry states to apply to each
+	 *                            {@link Statement} returned by
+	 *                            {@link #getEntrypoints()}
+	 * @param interprocedural the interprocedural analysis that can be queried
+	 *                            when a call towards an other cfg is
+	 *                            encountered
 	 * 
 	 * @return a {@link CFGWithAnalysisResults} instance that is equivalent to
 	 *             this control flow graph, and that stores for each
@@ -192,9 +255,9 @@ public class CFG extends FixpointGraph<CFG, Statement, Edge> implements CodeMemb
 	public final <A extends AbstractState<A, H, V>,
 			H extends HeapDomain<H>,
 			V extends ValueDomain<V>> CFGWithAnalysisResults<A, H, V> fixpoint(
-					AnalysisState<A, H, V> entryState, CallGraph cg)
+					AnalysisState<A, H, V> entryState, InterproceduralAnalysis<A, H, V> interprocedural)
 					throws FixpointException {
-		return fixpoint(entryState, cg, FIFOWorkingSet.mk(), DEFAULT_WIDENING_THRESHOLD);
+		return fixpoint(entryState, interprocedural, FIFOWorkingSet.mk(), DEFAULT_WIDENING_THRESHOLD);
 	}
 
 	/**
@@ -207,26 +270,29 @@ public class CFG extends FixpointGraph<CFG, Statement, Edge> implements CodeMemb
 	 * predecessors of the one being processed. After overcoming that threshold,
 	 * {@link Lattice#widening(Lattice)} is used. The computation starts at the
 	 * statements returned by {@link #getEntrypoints()}, using
-	 * {@code entryState} as entry state for all of them. {@code cg} will be
-	 * invoked to get the approximation of all invoked cfgs, while a fresh
-	 * instance of {@link FIFOWorkingSet} is used as working set for the
-	 * statements to process.
+	 * {@code entryState} as entry state for all of them.
+	 * {@code interprocedural} will be invoked to get the approximation of all
+	 * invoked cfgs, while a fresh instance of {@link FIFOWorkingSet} is used as
+	 * working set for the statements to process.
 	 * 
-	 * @param <A>        the type of {@link AbstractState} contained into the
-	 *                       analysis state
-	 * @param <H>        the type of {@link HeapDomain} contained into the
-	 *                       computed abstract state
-	 * @param <V>        the type of {@link ValueDomain} contained into the
-	 *                       computed abstract state
-	 * @param entryState the entry states to apply to each {@link Statement}
-	 *                       returned by {@link #getEntrypoints()}
-	 * @param cg         the callgraph that can be queried when a call towards
-	 *                       an other cfg is encountered
-	 * @param widenAfter the number of times after which the
-	 *                       {@link Lattice#lub(Lattice)} invocation gets
-	 *                       replaced by the {@link Lattice#widening(Lattice)}
-	 *                       call. Use {@code 0} to <b>always</b> use
-	 *                       {@link Lattice#lub(Lattice)}
+	 * @param <A>             the type of {@link AbstractState} contained into
+	 *                            the analysis state
+	 * @param <H>             the type of {@link HeapDomain} contained into the
+	 *                            computed abstract state
+	 * @param <V>             the type of {@link ValueDomain} contained into the
+	 *                            computed abstract state
+	 * @param entryState      the entry states to apply to each
+	 *                            {@link Statement} returned by
+	 *                            {@link #getEntrypoints()}
+	 * @param interprocedural the interprocedural analysis that can be queried
+	 *                            when a call towards an other cfg is
+	 *                            encountered
+	 * @param widenAfter      the number of times after which the
+	 *                            {@link Lattice#lub(Lattice)} invocation gets
+	 *                            replaced by the
+	 *                            {@link Lattice#widening(Lattice)} call. Use
+	 *                            {@code 0} to <b>always</b> use
+	 *                            {@link Lattice#lub(Lattice)}
 	 * 
 	 * @return a {@link CFGWithAnalysisResults} instance that is equivalent to
 	 *             this control flow graph, and that stores for each
@@ -240,9 +306,9 @@ public class CFG extends FixpointGraph<CFG, Statement, Edge> implements CodeMemb
 	public final <A extends AbstractState<A, H, V>,
 			H extends HeapDomain<H>,
 			V extends ValueDomain<V>> CFGWithAnalysisResults<A, H, V> fixpoint(
-					AnalysisState<A, H, V> entryState, CallGraph cg, int widenAfter)
+					AnalysisState<A, H, V> entryState, InterproceduralAnalysis<A, H, V> interprocedural, int widenAfter)
 					throws FixpointException {
-		return fixpoint(entryState, cg, FIFOWorkingSet.mk(), widenAfter);
+		return fixpoint(entryState, interprocedural, FIFOWorkingSet.mk(), widenAfter);
 	}
 
 	/**
@@ -256,22 +322,25 @@ public class CFG extends FixpointGraph<CFG, Statement, Edge> implements CodeMemb
 	 * processed. After overcoming that threshold,
 	 * {@link Lattice#widening(Lattice)} is used. The computation starts at the
 	 * statements returned by {@link #getEntrypoints()}, using
-	 * {@code entryState} as entry state for all of them. {@code cg} will be
-	 * invoked to get the approximation of all invoked cfgs, while {@code ws} is
-	 * used as working set for the statements to process.
+	 * {@code entryState} as entry state for all of them.
+	 * {@code interprocedural} will be invoked to get the approximation of all
+	 * invoked cfgs, while {@code ws} is used as working set for the statements
+	 * to process.
 	 * 
-	 * @param <A>        the type of {@link AbstractState} contained into the
-	 *                       analysis state
-	 * @param <H>        the type of {@link HeapDomain} contained into the
-	 *                       computed abstract state
-	 * @param <V>        the type of {@link ValueDomain} contained into the
-	 *                       computed abstract state
-	 * @param entryState the entry states to apply to each {@link Statement}
-	 *                       returned by {@link #getEntrypoints()}
-	 * @param cg         the callgraph that can be queried when a call towards
-	 *                       an other cfg is encountered
-	 * @param ws         the {@link WorkingSet} instance to use for this
-	 *                       computation
+	 * @param <A>             the type of {@link AbstractState} contained into
+	 *                            the analysis state
+	 * @param <H>             the type of {@link HeapDomain} contained into the
+	 *                            computed abstract state
+	 * @param <V>             the type of {@link ValueDomain} contained into the
+	 *                            computed abstract state
+	 * @param entryState      the entry states to apply to each
+	 *                            {@link Statement} returned by
+	 *                            {@link #getEntrypoints()}
+	 * @param interprocedural the interprocedural analysis that can be queried
+	 *                            when a call towards an other cfg is
+	 *                            encountered
+	 * @param ws              the {@link WorkingSet} instance to use for this
+	 *                            computation
 	 * 
 	 * @return a {@link CFGWithAnalysisResults} instance that is equivalent to
 	 *             this control flow graph, and that stores for each
@@ -285,9 +354,10 @@ public class CFG extends FixpointGraph<CFG, Statement, Edge> implements CodeMemb
 	public final <A extends AbstractState<A, H, V>,
 			H extends HeapDomain<H>,
 			V extends ValueDomain<V>> CFGWithAnalysisResults<A, H, V> fixpoint(
-					AnalysisState<A, H, V> entryState, CallGraph cg, WorkingSet<Statement> ws)
+					AnalysisState<A, H, V> entryState, InterproceduralAnalysis<A, H, V> interprocedural,
+					WorkingSet<Statement> ws)
 					throws FixpointException {
-		return fixpoint(entryState, cg, ws, DEFAULT_WIDENING_THRESHOLD);
+		return fixpoint(entryState, interprocedural, ws, DEFAULT_WIDENING_THRESHOLD);
 	}
 
 	/**
@@ -300,27 +370,31 @@ public class CFG extends FixpointGraph<CFG, Statement, Edge> implements CodeMemb
 	 * predecessors of the one being processed. After overcoming that threshold,
 	 * {@link Lattice#widening(Lattice)} is used. The computation starts at the
 	 * statements returned by {@link #getEntrypoints()}, using
-	 * {@code entryState} as entry state for all of them. {@code cg} will be
-	 * invoked to get the approximation of all invoked cfgs, while {@code ws} is
-	 * used as working set for the statements to process.
+	 * {@code entryState} as entry state for all of them.
+	 * {@code interprocedural} will be invoked to get the approximation of all
+	 * invoked cfgs, while {@code ws} is used as working set for the statements
+	 * to process.
 	 * 
-	 * @param <A>        the type of {@link AbstractState} contained into the
-	 *                       analysis state
-	 * @param <H>        the type of {@link HeapDomain} contained into the
-	 *                       computed abstract state
-	 * @param <V>        the type of {@link ValueDomain} contained into the
-	 *                       computed abstract state
-	 * @param entryState the entry states to apply to each {@link Statement}
-	 *                       returned by {@link #getEntrypoints()}
-	 * @param cg         the callgraph that can be queried when a call towards
-	 *                       an other cfg is encountered
-	 * @param ws         the {@link WorkingSet} instance to use for this
-	 *                       computation
-	 * @param widenAfter the number of times after which the
-	 *                       {@link Lattice#lub(Lattice)} invocation gets
-	 *                       replaced by the {@link Lattice#widening(Lattice)}
-	 *                       call. Use {@code 0} to <b>always</b> use
-	 *                       {@link Lattice#lub(Lattice)}
+	 * @param <A>             the type of {@link AbstractState} contained into
+	 *                            the analysis state
+	 * @param <H>             the type of {@link HeapDomain} contained into the
+	 *                            computed abstract state
+	 * @param <V>             the type of {@link ValueDomain} contained into the
+	 *                            computed abstract state
+	 * @param entryState      the entry states to apply to each
+	 *                            {@link Statement} returned by
+	 *                            {@link #getEntrypoints()}
+	 * @param interprocedural the interprocedural analysis that can be queried
+	 *                            when a call towards an other cfg is
+	 *                            encountered
+	 * @param ws              the {@link WorkingSet} instance to use for this
+	 *                            computation
+	 * @param widenAfter      the number of times after which the
+	 *                            {@link Lattice#lub(Lattice)} invocation gets
+	 *                            replaced by the
+	 *                            {@link Lattice#widening(Lattice)} call. Use
+	 *                            {@code 0} to <b>always</b> use
+	 *                            {@link Lattice#lub(Lattice)}
 	 * 
 	 * @return a {@link CFGWithAnalysisResults} instance that is equivalent to
 	 *             this control flow graph, and that stores for each
@@ -334,11 +408,13 @@ public class CFG extends FixpointGraph<CFG, Statement, Edge> implements CodeMemb
 	public final <A extends AbstractState<A, H, V>,
 			H extends HeapDomain<H>,
 			V extends ValueDomain<V>> CFGWithAnalysisResults<A, H, V> fixpoint(
-					AnalysisState<A, H, V> entryState, CallGraph cg, WorkingSet<Statement> ws, int widenAfter)
+					AnalysisState<A, H, V> entryState, InterproceduralAnalysis<A, H, V> interprocedural,
+					WorkingSet<Statement> ws,
+					int widenAfter)
 					throws FixpointException {
 		Map<Statement, AnalysisState<A, H, V>> start = new HashMap<>();
 		entrypoints.forEach(e -> start.put(e, entryState));
-		return fixpoint(start, cg, ws, widenAfter);
+		return fixpoint(entryState, start, interprocedural, ws, widenAfter);
 	}
 
 	/**
@@ -352,24 +428,24 @@ public class CFG extends FixpointGraph<CFG, Statement, Edge> implements CodeMemb
 	 * processed. After overcoming that threshold,
 	 * {@link Lattice#widening(Lattice)} is used. The computation starts at the
 	 * statements in {@code entrypoints}, using {@code entryState} as entry
-	 * state for all of them. {@code cg} will be invoked to get the
+	 * state for all of them. {@code interprocedural} will be invoked to get the
 	 * approximation of all invoked cfgs, while a fresh instance of
 	 * {@link FIFOWorkingSet} is used as working set for the statements to
 	 * process.
 	 * 
-	 * @param <A>         the type of {@link AbstractState} contained into the
-	 *                        analysis state
-	 * @param <H>         the type of {@link HeapDomain} contained into the
-	 *                        computed abstract state
-	 * @param <V>         the type of {@link ValueDomain} contained into the
-	 *                        computed abstract state
-	 * @param entrypoints the collection of {@link Statement}s that to use as a
-	 *                        starting point of the computation (that must be
-	 *                        nodes of this cfg)
-	 * @param entryState  the entry states to apply to each {@link Statement} in
-	 *                        {@code entrypoints}
-	 * @param cg          the callgraph that can be queried when a call towards
-	 *                        an other cfg is encountered
+	 * @param <A>             the type of {@link AbstractState} contained into
+	 *                            the analysis state
+	 * @param <H>             the type of {@link HeapDomain} contained into the
+	 *                            computed abstract state
+	 * @param <V>             the type of {@link ValueDomain} contained into the
+	 *                            computed abstract state
+	 * @param entrypoints     the collection of {@link Statement}s that to use
+	 *                            as a starting point of the computation (that
+	 *                            must be nodes of this cfg)
+	 * @param entryState      the entry states to apply to each
+	 *                            {@link Statement} in {@code entrypoints}
+	 * @param interprocedural the callgraph that can be queried when a call
+	 *                            towards an other cfg is encountered
 	 * 
 	 * @return a {@link CFGWithAnalysisResults} instance that is equivalent to
 	 *             this control flow graph, and that stores for each
@@ -383,9 +459,10 @@ public class CFG extends FixpointGraph<CFG, Statement, Edge> implements CodeMemb
 	public final <A extends AbstractState<A, H, V>,
 			H extends HeapDomain<H>,
 			V extends ValueDomain<V>> CFGWithAnalysisResults<A, H, V> fixpoint(
-					Collection<Statement> entrypoints, AnalysisState<A, H, V> entryState, CallGraph cg)
+					Collection<Statement> entrypoints, AnalysisState<A, H, V> entryState,
+					InterproceduralAnalysis<A, H, V> interprocedural)
 					throws FixpointException {
-		return fixpoint(entrypoints, entryState, cg, FIFOWorkingSet.mk(), DEFAULT_WIDENING_THRESHOLD);
+		return fixpoint(entrypoints, entryState, interprocedural, FIFOWorkingSet.mk(), DEFAULT_WIDENING_THRESHOLD);
 	}
 
 	/**
@@ -398,29 +475,30 @@ public class CFG extends FixpointGraph<CFG, Statement, Edge> implements CodeMemb
 	 * predecessors of the one being processed. After overcoming that threshold,
 	 * {@link Lattice#widening(Lattice)} is used. The computation starts at the
 	 * statements in {@code entrypoints}, using {@code entryState} as entry
-	 * state for all of them. {@code cg} will be invoked to get the
+	 * state for all of them. {@code interprocedural} will be invoked to get the
 	 * approximation of all invoked cfgs, while a fresh instance of
 	 * {@link FIFOWorkingSet} is used as working set for the statements to
 	 * process.
 	 * 
-	 * @param <A>         the type of {@link AbstractState} contained into the
-	 *                        analysis state
-	 * @param <H>         the type of {@link HeapDomain} contained into the
-	 *                        computed abstract state
-	 * @param <V>         the type of {@link ValueDomain} contained into the
-	 *                        computed abstract state
-	 * @param entrypoints the collection of {@link Statement}s that to use as a
-	 *                        starting point of the computation (that must be
-	 *                        nodes of this cfg)
-	 * @param entryState  the entry states to apply to each {@link Statement} in
-	 *                        {@code entrypoints}
-	 * @param cg          the callgraph that can be queried when a call towards
-	 *                        an other cfg is encountered
-	 * @param widenAfter  the number of times after which the
-	 *                        {@link Lattice#lub(Lattice)} invocation gets
-	 *                        replaced by the {@link Lattice#widening(Lattice)}
-	 *                        call. Use {@code 0} to <b>always</b> use
-	 *                        {@link Lattice#lub(Lattice)}
+	 * @param <A>             the type of {@link AbstractState} contained into
+	 *                            the analysis state
+	 * @param <H>             the type of {@link HeapDomain} contained into the
+	 *                            computed abstract state
+	 * @param <V>             the type of {@link ValueDomain} contained into the
+	 *                            computed abstract state
+	 * @param entrypoints     the collection of {@link Statement}s that to use
+	 *                            as a starting point of the computation (that
+	 *                            must be nodes of this cfg)
+	 * @param entryState      the entry states to apply to each
+	 *                            {@link Statement} in {@code entrypoints}
+	 * @param interprocedural the callgraph that can be queried when a call
+	 *                            towards an other cfg is encountered
+	 * @param widenAfter      the number of times after which the
+	 *                            {@link Lattice#lub(Lattice)} invocation gets
+	 *                            replaced by the
+	 *                            {@link Lattice#widening(Lattice)} call. Use
+	 *                            {@code 0} to <b>always</b> use
+	 *                            {@link Lattice#lub(Lattice)}
 	 * 
 	 * @return a {@link CFGWithAnalysisResults} instance that is equivalent to
 	 *             this control flow graph, and that stores for each
@@ -434,9 +512,11 @@ public class CFG extends FixpointGraph<CFG, Statement, Edge> implements CodeMemb
 	public final <A extends AbstractState<A, H, V>,
 			H extends HeapDomain<H>,
 			V extends ValueDomain<V>> CFGWithAnalysisResults<A, H, V> fixpoint(
-					Collection<Statement> entrypoints, AnalysisState<A, H, V> entryState, CallGraph cg, int widenAfter)
+					Collection<Statement> entrypoints, AnalysisState<A, H, V> entryState,
+					InterproceduralAnalysis<A, H, V> interprocedural,
+					int widenAfter)
 					throws FixpointException {
-		return fixpoint(entrypoints, entryState, cg, FIFOWorkingSet.mk(), widenAfter);
+		return fixpoint(entrypoints, entryState, interprocedural, FIFOWorkingSet.mk(), widenAfter);
 	}
 
 	/**
@@ -450,25 +530,25 @@ public class CFG extends FixpointGraph<CFG, Statement, Edge> implements CodeMemb
 	 * processed. After overcoming that threshold,
 	 * {@link Lattice#widening(Lattice)} is used. The computation starts at the
 	 * statements in {@code entrypoints}, using {@code entryState} as entry
-	 * state for all of them. {@code cg} will be invoked to get the
+	 * state for all of them. {@code interprocedural} will be invoked to get the
 	 * approximation of all invoked cfgs, while {@code ws} is used as working
 	 * set for the statements to process.
 	 * 
-	 * @param <A>         the type of {@link AbstractState} contained into the
-	 *                        analysis state
-	 * @param <H>         the type of {@link HeapDomain} contained into the
-	 *                        computed abstract state
-	 * @param <V>         the type of {@link ValueDomain} contained into the
-	 *                        computed abstract state
-	 * @param entrypoints the collection of {@link Statement}s that to use as a
-	 *                        starting point of the computation (that must be
-	 *                        nodes of this cfg)
-	 * @param entryState  the entry states to apply to each {@link Statement} in
-	 *                        {@code entrypoints}
-	 * @param cg          the callgraph that can be queried when a call towards
-	 *                        an other cfg is encountered
-	 * @param ws          the {@link WorkingSet} instance to use for this
-	 *                        computation
+	 * @param <A>             the type of {@link AbstractState} contained into
+	 *                            the analysis state
+	 * @param <H>             the type of {@link HeapDomain} contained into the
+	 *                            computed abstract state
+	 * @param <V>             the type of {@link ValueDomain} contained into the
+	 *                            computed abstract state
+	 * @param entrypoints     the collection of {@link Statement}s that to use
+	 *                            as a starting point of the computation (that
+	 *                            must be nodes of this cfg)
+	 * @param entryState      the entry states to apply to each
+	 *                            {@link Statement} in {@code entrypoints}
+	 * @param interprocedural the callgraph that can be queried when a call
+	 *                            towards an other cfg is encountered
+	 * @param ws              the {@link WorkingSet} instance to use for this
+	 *                            computation
 	 * 
 	 * @return a {@link CFGWithAnalysisResults} instance that is equivalent to
 	 *             this control flow graph, and that stores for each
@@ -482,10 +562,11 @@ public class CFG extends FixpointGraph<CFG, Statement, Edge> implements CodeMemb
 	public final <A extends AbstractState<A, H, V>,
 			H extends HeapDomain<H>,
 			V extends ValueDomain<V>> CFGWithAnalysisResults<A, H, V> fixpoint(
-					Collection<Statement> entrypoints, AnalysisState<A, H, V> entryState, CallGraph cg,
+					Collection<Statement> entrypoints, AnalysisState<A, H, V> entryState,
+					InterproceduralAnalysis<A, H, V> interprocedural,
 					WorkingSet<Statement> ws)
 					throws FixpointException {
-		return fixpoint(entrypoints, entryState, cg, ws, DEFAULT_WIDENING_THRESHOLD);
+		return fixpoint(entrypoints, entryState, interprocedural, ws, DEFAULT_WIDENING_THRESHOLD);
 	}
 
 	/**
@@ -498,30 +579,31 @@ public class CFG extends FixpointGraph<CFG, Statement, Edge> implements CodeMemb
 	 * predecessors of the one being processed. After overcoming that threshold,
 	 * {@link Lattice#widening(Lattice)} is used. The computation starts at the
 	 * statements in {@code entrypoints}, using {@code entryState} as entry
-	 * state for all of them. {@code cg} will be invoked to get the
+	 * state for all of them. {@code interprocedural} will be invoked to get the
 	 * approximation of all invoked cfgs, while {@code ws} is used as working
 	 * set for the statements to process.
 	 * 
-	 * @param <A>         the type of {@link AbstractState} contained into the
-	 *                        analysis state
-	 * @param <H>         the type of {@link HeapDomain} contained into the
-	 *                        computed abstract state
-	 * @param <V>         the type of {@link ValueDomain} contained into the
-	 *                        computed abstract state
-	 * @param entrypoints the collection of {@link Statement}s that to use as a
-	 *                        starting point of the computation (that must be
-	 *                        nodes of this cfg)
-	 * @param entryState  the entry states to apply to each {@link Statement} in
-	 *                        {@code entrypoints}
-	 * @param cg          the callgraph that can be queried when a call towards
-	 *                        an other cfg is encountered
-	 * @param ws          the {@link WorkingSet} instance to use for this
-	 *                        computation
-	 * @param widenAfter  the number of times after which the
-	 *                        {@link Lattice#lub(Lattice)} invocation gets
-	 *                        replaced by the {@link Lattice#widening(Lattice)}
-	 *                        call. Use {@code 0} to <b>always</b> use
-	 *                        {@link Lattice#lub(Lattice)}
+	 * @param <A>             the type of {@link AbstractState} contained into
+	 *                            the analysis state
+	 * @param <H>             the type of {@link HeapDomain} contained into the
+	 *                            computed abstract state
+	 * @param <V>             the type of {@link ValueDomain} contained into the
+	 *                            computed abstract state
+	 * @param entrypoints     the collection of {@link Statement}s that to use
+	 *                            as a starting point of the computation (that
+	 *                            must be nodes of this cfg)
+	 * @param entryState      the entry states to apply to each
+	 *                            {@link Statement} in {@code entrypoints}
+	 * @param interprocedural the callgraph that can be queried when a call
+	 *                            towards an other cfg is encountered
+	 * @param ws              the {@link WorkingSet} instance to use for this
+	 *                            computation
+	 * @param widenAfter      the number of times after which the
+	 *                            {@link Lattice#lub(Lattice)} invocation gets
+	 *                            replaced by the
+	 *                            {@link Lattice#widening(Lattice)} call. Use
+	 *                            {@code 0} to <b>always</b> use
+	 *                            {@link Lattice#lub(Lattice)}
 	 * 
 	 * @return a {@link CFGWithAnalysisResults} instance that is equivalent to
 	 *             this control flow graph, and that stores for each
@@ -535,12 +617,13 @@ public class CFG extends FixpointGraph<CFG, Statement, Edge> implements CodeMemb
 	public final <A extends AbstractState<A, H, V>,
 			H extends HeapDomain<H>,
 			V extends ValueDomain<V>> CFGWithAnalysisResults<A, H, V> fixpoint(
-					Collection<Statement> entrypoints, AnalysisState<A, H, V> entryState, CallGraph cg,
+					Collection<Statement> entrypoints, AnalysisState<A, H, V> entryState,
+					InterproceduralAnalysis<A, H, V> interprocedural,
 					WorkingSet<Statement> ws,
 					int widenAfter) throws FixpointException {
 		Map<Statement, AnalysisState<A, H, V>> start = new HashMap<>();
 		entrypoints.forEach(e -> start.put(e, entryState));
-		return fixpoint(start, cg, ws, widenAfter);
+		return fixpoint(entryState, start, interprocedural, ws, widenAfter);
 	}
 
 	/**
@@ -554,22 +637,26 @@ public class CFG extends FixpointGraph<CFG, Statement, Edge> implements CodeMemb
 	 * processed. After overcoming that threshold,
 	 * {@link Lattice#widening(Lattice)} is used. The computation starts at the
 	 * statements in {@code startingPoints}, using as its entry state their
-	 * respective value. {@code cg} will be invoked to get the approximation of
-	 * all invoked cfgs, while a fresh instance of {@link FIFOWorkingSet} is
-	 * used as working set for the statements to process.
+	 * respective value. {@code interprocedural} will be invoked to get the
+	 * approximation of all invoked cfgs, while a fresh instance of
+	 * {@link FIFOWorkingSet} is used as working set for the statements to
+	 * process.
 	 * 
-	 * @param <A>            the type of {@link AbstractState} contained into
-	 *                           the analysis state
-	 * @param <H>            the type of {@link HeapDomain} contained into the
-	 *                           computed abstract state
-	 * @param <V>            the type of {@link ValueDomain} contained into the
-	 *                           computed abstract state
-	 * @param startingPoints a map between {@link Statement}s that to use as a
-	 *                           starting point of the computation (that must be
-	 *                           nodes of this cfg) and the entry states to
-	 *                           apply on it
-	 * @param cg             the callgraph that can be queried when a call
-	 *                           towards an other cfg is encountered
+	 * @param <A>             the type of {@link AbstractState} contained into
+	 *                            the analysis state
+	 * @param <H>             the type of {@link HeapDomain} contained into the
+	 *                            computed abstract state
+	 * @param <V>             the type of {@link ValueDomain} contained into the
+	 *                            computed abstract state
+	 * @param singleton       an instance of the {@link AnalysisState}
+	 *                            containing the abstract state of the analysis
+	 *                            to run, used to retrieve top and bottom values
+	 * @param startingPoints  a map between {@link Statement}s that to use as a
+	 *                            starting point of the computation (that must
+	 *                            be nodes of this cfg) and the entry states to
+	 *                            apply on it
+	 * @param interprocedural the callgraph that can be queried when a call
+	 *                            towards an other cfg is encountered
 	 * 
 	 * @return a {@link CFGWithAnalysisResults} instance that is equivalent to
 	 *             this control flow graph, and that stores for each
@@ -583,9 +670,11 @@ public class CFG extends FixpointGraph<CFG, Statement, Edge> implements CodeMemb
 	public final <A extends AbstractState<A, H, V>,
 			H extends HeapDomain<H>,
 			V extends ValueDomain<V>> CFGWithAnalysisResults<A, H, V> fixpoint(
-					Map<Statement, AnalysisState<A, H, V>> startingPoints, CallGraph cg)
+					AnalysisState<A, H, V> singleton,
+					Map<Statement, AnalysisState<A, H, V>> startingPoints,
+					InterproceduralAnalysis<A, H, V> interprocedural)
 					throws FixpointException {
-		return fixpoint(startingPoints, cg, FIFOWorkingSet.mk(), DEFAULT_WIDENING_THRESHOLD);
+		return fixpoint(singleton, startingPoints, interprocedural, FIFOWorkingSet.mk(), DEFAULT_WIDENING_THRESHOLD);
 	}
 
 	/**
@@ -598,28 +687,32 @@ public class CFG extends FixpointGraph<CFG, Statement, Edge> implements CodeMemb
 	 * predecessors of the one being processed. After overcoming that threshold,
 	 * {@link Lattice#widening(Lattice)} is used. The computation starts at the
 	 * statements in {@code startingPoints}, using as its entry state their
-	 * respective value. {@code cg} will be invoked to get the approximation of
-	 * all invoked cfgs, while a fresh instance of {@link FIFOWorkingSet} is
-	 * used as working set for the statements to process.
+	 * respective value. {@code interprocedural} will be invoked to get the
+	 * approximation of all invoked cfgs, while a fresh instance of
+	 * {@link FIFOWorkingSet} is used as working set for the statements to
+	 * process.
 	 * 
-	 * @param <A>            the type of {@link AbstractState} contained into
-	 *                           the analysis state
-	 * @param <H>            the type of {@link HeapDomain} contained into the
-	 *                           computed abstract state
-	 * @param <V>            the type of {@link ValueDomain} contained into the
-	 *                           computed abstract state
-	 * @param startingPoints a map between {@link Expression}s that to use as a
-	 *                           starting point of the computation (that must be
-	 *                           nodes of this cfg) and the entry states to
-	 *                           apply on it
-	 * @param cg             the callgraph that can be queried when a call
-	 *                           towards an other cfg is encountered
-	 * @param widenAfter     the number of times after which the
-	 *                           {@link Lattice#lub(Lattice)} invocation gets
-	 *                           replaced by the
-	 *                           {@link Lattice#widening(Lattice)} call. Use
-	 *                           {@code 0} to <b>always</b> use
-	 *                           {@link Lattice#lub(Lattice)}
+	 * @param <A>             the type of {@link AbstractState} contained into
+	 *                            the analysis state
+	 * @param <H>             the type of {@link HeapDomain} contained into the
+	 *                            computed abstract state
+	 * @param <V>             the type of {@link ValueDomain} contained into the
+	 *                            computed abstract state
+	 * @param singleton       an instance of the {@link AnalysisState}
+	 *                            containing the abstract state of the analysis
+	 *                            to run, used to retrieve top and bottom values
+	 * @param startingPoints  a map between {@link Expression}s that to use as a
+	 *                            starting point of the computation (that must
+	 *                            be nodes of this cfg) and the entry states to
+	 *                            apply on it
+	 * @param interprocedural the callgraph that can be queried when a call
+	 *                            towards an other cfg is encountered
+	 * @param widenAfter      the number of times after which the
+	 *                            {@link Lattice#lub(Lattice)} invocation gets
+	 *                            replaced by the
+	 *                            {@link Lattice#widening(Lattice)} call. Use
+	 *                            {@code 0} to <b>always</b> use
+	 *                            {@link Lattice#lub(Lattice)}
 	 * 
 	 * @return a {@link CFGWithAnalysisResults} instance that is equivalent to
 	 *             this control flow graph, and that stores for each
@@ -633,9 +726,11 @@ public class CFG extends FixpointGraph<CFG, Statement, Edge> implements CodeMemb
 	public final <A extends AbstractState<A, H, V>,
 			H extends HeapDomain<H>,
 			V extends ValueDomain<V>> CFGWithAnalysisResults<A, H, V> fixpoint(
-					Map<Statement, AnalysisState<A, H, V>> startingPoints, CallGraph cg, int widenAfter)
+					AnalysisState<A, H, V> singleton,
+					Map<Statement, AnalysisState<A, H, V>> startingPoints,
+					InterproceduralAnalysis<A, H, V> interprocedural, int widenAfter)
 					throws FixpointException {
-		return fixpoint(startingPoints, cg, FIFOWorkingSet.mk(), widenAfter);
+		return fixpoint(singleton, startingPoints, interprocedural, FIFOWorkingSet.mk(), widenAfter);
 	}
 
 	/**
@@ -649,24 +744,27 @@ public class CFG extends FixpointGraph<CFG, Statement, Edge> implements CodeMemb
 	 * processed. After overcoming that threshold,
 	 * {@link Lattice#widening(Lattice)} is used. The computation starts at the
 	 * statements in {@code startingPoints}, using as its entry state their
-	 * respective value. {@code cg} will be invoked to get the approximation of
-	 * all invoked cfgs, while {@code ws} is used as working set for the
-	 * statements to process.
+	 * respective value. {@code interprocedural} will be invoked to get the
+	 * approximation of all invoked cfgs, while {@code ws} is used as working
+	 * set for the statements to process.
 	 * 
-	 * @param <A>            the type of {@link AbstractState} contained into
-	 *                           the analysis state
-	 * @param <H>            the type of {@link HeapDomain} contained into the
-	 *                           computed abstract state
-	 * @param <V>            the type of {@link ValueDomain} contained into the
-	 *                           computed abstract state
-	 * @param startingPoints a map between {@link Expression}s that to use as a
-	 *                           starting point of the computation (that must be
-	 *                           nodes of this cfg) and the entry states to
-	 *                           apply on it
-	 * @param cg             the callgraph that can be queried when a call
-	 *                           towards an other cfg is encountered
-	 * @param ws             the {@link WorkingSet} instance to use for this
-	 *                           computation
+	 * @param <A>             the type of {@link AbstractState} contained into
+	 *                            the analysis state
+	 * @param <H>             the type of {@link HeapDomain} contained into the
+	 *                            computed abstract state
+	 * @param <V>             the type of {@link ValueDomain} contained into the
+	 *                            computed abstract state
+	 * @param singleton       an instance of the {@link AnalysisState}
+	 *                            containing the abstract state of the analysis
+	 *                            to run, used to retrieve top and bottom values
+	 * @param startingPoints  a map between {@link Expression}s that to use as a
+	 *                            starting point of the computation (that must
+	 *                            be nodes of this cfg) and the entry states to
+	 *                            apply on it
+	 * @param interprocedural the callgraph that can be queried when a call
+	 *                            towards an other cfg is encountered
+	 * @param ws              the {@link WorkingSet} instance to use for this
+	 *                            computation
 	 * 
 	 * @return a {@link CFGWithAnalysisResults} instance that is equivalent to
 	 *             this control flow graph, and that stores for each
@@ -680,9 +778,12 @@ public class CFG extends FixpointGraph<CFG, Statement, Edge> implements CodeMemb
 	public final <A extends AbstractState<A, H, V>,
 			H extends HeapDomain<H>,
 			V extends ValueDomain<V>> CFGWithAnalysisResults<A, H, V> fixpoint(
-					Map<Statement, AnalysisState<A, H, V>> startingPoints, CallGraph cg, WorkingSet<Statement> ws)
+					AnalysisState<A, H, V> singleton,
+					Map<Statement, AnalysisState<A, H, V>> startingPoints,
+					InterproceduralAnalysis<A, H, V> interprocedural,
+					WorkingSet<Statement> ws)
 					throws FixpointException {
-		return fixpoint(startingPoints, cg, ws, DEFAULT_WIDENING_THRESHOLD);
+		return fixpoint(singleton, startingPoints, interprocedural, ws, DEFAULT_WIDENING_THRESHOLD);
 	}
 
 	/**
@@ -695,30 +796,33 @@ public class CFG extends FixpointGraph<CFG, Statement, Edge> implements CodeMemb
 	 * predecessors of the one being processed. After overcoming that threshold,
 	 * {@link Lattice#widening(Lattice)} is used. The computation starts at the
 	 * statements in {@code startingPoints}, using as its entry state their
-	 * respective value. {@code cg} will be invoked to get the approximation of
-	 * all invoked cfgs, while {@code ws} is used as working set for the
-	 * statements to process.
+	 * respective value. {@code interprocedural} will be invoked to get the
+	 * approximation of all invoked cfgs, while {@code ws} is used as working
+	 * set for the statements to process.
 	 * 
-	 * @param <A>            the type of {@link AbstractState} contained into
-	 *                           the analysis state
-	 * @param <H>            the type of {@link HeapDomain} contained into the
-	 *                           computed abstract state
-	 * @param <V>            the type of {@link ValueDomain} contained into the
-	 *                           computed abstract state
-	 * @param startingPoints a map between {@link Statement}s that to use as a
-	 *                           starting point of the computation (that must be
-	 *                           nodes of this cfg) and the entry states to
-	 *                           apply on it
-	 * @param cg             the callgraph that can be queried when a call
-	 *                           towards an other cfg is encountered
-	 * @param ws             the {@link WorkingSet} instance to use for this
-	 *                           computation
-	 * @param widenAfter     the number of times after which the
-	 *                           {@link Lattice#lub(Lattice)} invocation gets
-	 *                           replaced by the
-	 *                           {@link Lattice#widening(Lattice)} call. Use
-	 *                           {@code 0} to <b>always</b> use
-	 *                           {@link Lattice#lub(Lattice)}
+	 * @param <A>             the type of {@link AbstractState} contained into
+	 *                            the analysis state
+	 * @param <H>             the type of {@link HeapDomain} contained into the
+	 *                            computed abstract state
+	 * @param <V>             the type of {@link ValueDomain} contained into the
+	 *                            computed abstract state
+	 * @param singleton       an instance of the {@link AnalysisState}
+	 *                            containing the abstract state of the analysis
+	 *                            to run, used to retrieve top and bottom values
+	 * @param startingPoints  a map between {@link Statement}s that to use as a
+	 *                            starting point of the computation (that must
+	 *                            be nodes of this cfg) and the entry states to
+	 *                            apply on it
+	 * @param interprocedural the callgraph that can be queried when a call
+	 *                            towards an other cfg is encountered
+	 * @param ws              the {@link WorkingSet} instance to use for this
+	 *                            computation
+	 * @param widenAfter      the number of times after which the
+	 *                            {@link Lattice#lub(Lattice)} invocation gets
+	 *                            replaced by the
+	 *                            {@link Lattice#widening(Lattice)} call. Use
+	 *                            {@code 0} to <b>always</b> use
+	 *                            {@link Lattice#lub(Lattice)}
 	 * 
 	 * @return a {@link CFGWithAnalysisResults} instance that is equivalent to
 	 *             this control flow graph, and that stores for each
@@ -733,12 +837,16 @@ public class CFG extends FixpointGraph<CFG, Statement, Edge> implements CodeMemb
 	public <A extends AbstractState<A, H, V>,
 			H extends HeapDomain<H>,
 			V extends ValueDomain<V>> CFGWithAnalysisResults<A, H, V> fixpoint(
-					Map<Statement, AnalysisState<A, H, V>> startingPoints, CallGraph cg, WorkingSet<Statement> ws,
+					AnalysisState<A, H, V> singleton,
+					Map<Statement, AnalysisState<A, H, V>> startingPoints,
+					InterproceduralAnalysis<A, H, V> interprocedural,
+					WorkingSet<Statement> ws,
 					int widenAfter)
 					throws FixpointException {
-		return new CFGWithAnalysisResults<A, H, V>(this, super.fixpoint(startingPoints, cg, ws, widenAfter,
-				(st, entryState, callGraph, expressions) -> st.semantics(entryState, callGraph,
-						(StatementStore) expressions)));
+		return new CFGWithAnalysisResults<A, H, V>(this, singleton, startingPoints,
+				super.fixpoint(startingPoints, interprocedural, ws, widenAfter,
+						(st, entryState, callGraph, expressions) -> st.semantics(entryState, callGraph,
+								(StatementStore) expressions)));
 	}
 
 	@Override
@@ -774,11 +882,49 @@ public class CFG extends FixpointGraph<CFG, Statement, Edge> implements CodeMemb
 
 	@Override
 	protected DotCFG toDot(Function<Statement, String> labelGenerator) {
-		return DotCFG.fromCFG(this, labelGenerator);
+		return DotCFG.fromCFG(this, null, labelGenerator);
 	}
 
 	@Override
 	protected void preSimplify(Statement node) {
+		shiftVariableScopes(node);
+		shiftControlFlowStructuresEnd(node);
+	}
+
+	private void shiftControlFlowStructuresEnd(Statement node) {
+		Collection<Statement> followers = followersOf(node);
+
+		Statement candidate;
+		for (ControlFlowStructure cfs : cfStructs)
+			if (node == cfs.getFirstFollower())
+				if (followers.isEmpty())
+					cfs.setFirstFollower(null);
+				else if (followers.size() == 1)
+					if (!((candidate = followers.iterator().next()) instanceof NoOp))
+						cfs.setFirstFollower(candidate);
+					else
+						cfs.setFirstFollower(firstNonNoOpDeterministicFollower(candidate));
+				else {
+					log.warn(node + " is the first follower of a control flow structure, it is being"
+							+ " simplified but has multiple followers: the first follower of the conditional structure will be lost");
+					cfs.setFirstFollower(null);
+				}
+	}
+
+	private Statement firstNonNoOpDeterministicFollower(Statement st) {
+		Statement current = st;
+		while (current instanceof NoOp) {
+			Collection<Statement> followers = followersOf(current);
+			if (followers.isEmpty() || followers.size() > 1)
+				// we reached the end or we have more than one follower
+				return null;
+			current = followers.iterator().next();
+		}
+
+		return current;
+	}
+
+	private void shiftVariableScopes(Statement node) {
 		Collection<
 				VariableTableEntry> starting = descriptor.getVariables().stream().filter(v -> v.getScopeStart() == node)
 						.collect(Collectors.toList());
@@ -877,10 +1023,10 @@ public class CFG extends FixpointGraph<CFG, Statement, Edge> implements CodeMemb
 	 * Validates this cfg, ensuring that the code contained in it is well
 	 * formed. This method checks that:
 	 * <ul>
-	 * <li>each {@link Edge} is connected to {@link Statement}s contained in the
-	 * cfg</li>
-	 * <li>all {@link Statement}s with no ingoing edges are marked as
-	 * entrypoints of the cfg (i.e. no deadcode)</li>
+	 * <li>the underlying adjacency matrix is valid, through
+	 * {@link AdjacencyMatrix#validate(Collection)}</li>
+	 * <li>all {@link ControlFlowStructure}s of this cfg contains node
+	 * effectively in the cfg</li>
 	 * <li>all {@link Statement}s that stop the execution (according to
 	 * {@link Statement#stopsExecution()}) do not have outgoing edges</li>
 	 * <li>all entrypoints are effectively part of this cfg</li>
@@ -890,39 +1036,235 @@ public class CFG extends FixpointGraph<CFG, Statement, Edge> implements CodeMemb
 	 *                                        fail
 	 */
 	public void validate() throws ProgramValidationException {
-		Collection<Statement> nodes = adjacencyMatrix.getNodes();
+		try {
+			adjacencyMatrix.validate(entrypoints);
+		} catch (ProgramValidationException e) {
+			throw new ProgramValidationException("The matrix behind " + this + " is invalid", e);
+		}
 
-		// all edges should be connected to statements inside the cfg
-		for (Entry<Statement, Pair<ExternalSet<Edge>, ExternalSet<Edge>>> st : adjacencyMatrix) {
-			for (Edge in : st.getValue().getLeft())
-				validateEdge(nodes, in);
+		for (ControlFlowStructure struct : cfStructs) {
+			for (Statement st : struct.allStatements())
+				// we tolerate null values only if its the follower
+				if ((st == null && struct.getFirstFollower() != null)
+						|| (st != null && !adjacencyMatrix.containsNode(st, false)))
+					throw new ProgramValidationException(this + " has a conditional structure (" + struct
+							+ ") that contains a node not in the graph: " + st);
+		}
 
-			for (Edge out : st.getValue().getRight())
-				validateEdge(nodes, out);
-
-			// no deadcode
-			if (st.getValue().getLeft().isEmpty() && !entrypoints.contains(st.getKey()))
-				throw new ProgramValidationException(
-						this + " contains an unreachable node that is not marked as entrypoint: " + st.getKey());
-
+		for (Entry<Statement, Pair<ExternalSet<Edge>, ExternalSet<Edge>>> st : adjacencyMatrix)
 			// no outgoing edges in execution-terminating statements
 			if (st.getKey().stopsExecution() && !st.getValue().getRight().isEmpty())
 				throw new ProgramValidationException(
 						this + " contains an execution-stopping node that has followers: " + st.getKey());
-		}
 
 		// all entrypoints should be within the cfg
-		if (!nodes.containsAll(entrypoints))
+		if (!adjacencyMatrix.getNodes().containsAll(entrypoints))
 			throw new ProgramValidationException(this + " has entrypoints that are not part of the graph: "
-					+ new HashSet<>(entrypoints).retainAll(nodes));
+					+ new HashSet<>(entrypoints).retainAll(adjacencyMatrix.getNodes()));
 	}
 
-	private void validateEdge(Collection<Statement> nodes, Edge edge) throws ProgramValidationException {
-		if (!nodes.contains(edge.getSource()))
-			throw new ProgramValidationException(this + " contains an invalid edge: '" + edge
-					+ "' originates in a node that is not part of the graph");
-		else if (!nodes.contains(edge.getDestination()))
-			throw new ProgramValidationException(this + " contains an invalid edge: '" + edge
-					+ "' reaches a node that is not part of the graph");
+	private Collection<ControlFlowStructure> getControlFlowsContaining(ProgramPoint pp) {
+		if (cfStructs.isEmpty() && !cfsExtracted) {
+			new ControlFlowExtractor(this).extract().forEach(cfStructs::add);
+			cfsExtracted = true;
+		}
+
+		if (!(pp instanceof Statement))
+			// synthetic pp
+			return Collections.emptyList();
+
+		Statement st = (Statement) pp;
+		if (st instanceof Expression)
+			st = ((Expression) st).getRootStatement();
+		Collection<ControlFlowStructure> res = new LinkedList<>();
+		for (ControlFlowStructure cf : cfStructs)
+			if (cf.contains(st))
+				res.add(cf);
+
+		return res;
+	}
+
+	/**
+	 * Yields {@code true} if and only if the given program point is inside the
+	 * body of a {@link ControlFlowStructure}, regardless of its type.<br>
+	 * <br>
+	 * Note that if no control flow structures have been provided by frontends,
+	 * and no attempt at extracting them has been made yet, invoking this method
+	 * will cause a {@link ControlFlowExtractor} to try to extract them.
+	 * 
+	 * @param pp the program point
+	 * 
+	 * @return {@code true} if {@code pp} is inside a control flow structure
+	 */
+	public boolean isGuarded(ProgramPoint pp) {
+		return !getControlFlowsContaining(pp).isEmpty();
+	}
+
+	/**
+	 * Yields {@code true} if and only if the given program point is inside the
+	 * body of a {@link Loop}.<br>
+	 * <br>
+	 * Note that if no control flow structures have been provided by frontends,
+	 * and no attempt at extracting them has been made yet, invoking this method
+	 * will cause a {@link ControlFlowExtractor} to try to extract them.
+	 * 
+	 * @param pp the program point
+	 * 
+	 * @return {@code true} if {@code pp} is inside a loop
+	 */
+	public boolean isInsideLoop(ProgramPoint pp) {
+		return getControlFlowsContaining(pp).stream().anyMatch(Loop.class::isInstance);
+	}
+
+	/**
+	 * Yields {@code true} if and only if the given program point is inside one
+	 * of the branches of an {@link IfThenElse}.<br>
+	 * <br>
+	 * Note that if no control flow structures have been provided by frontends,
+	 * and no attempt at extracting them has been made yet, invoking this method
+	 * will cause a {@link ControlFlowExtractor} to try to extract them.
+	 * 
+	 * @param pp the program point
+	 * 
+	 * @return {@code true} if {@code pp} is inside an if-then-else
+	 */
+	public boolean isInsideIfThenElse(ProgramPoint pp) {
+		return getControlFlowsContaining(pp).stream().anyMatch(IfThenElse.class::isInstance);
+	}
+
+	/**
+	 * Yields the guard of all the {@link ControlFlowStructure}s, regardless of
+	 * their type, containing the given program point. If the program point is
+	 * not part of the body of a control structure, this method returns an empty
+	 * collection.<br>
+	 * <br>
+	 * Note that if no control flow structures have been provided by frontends,
+	 * and no attempt at extracting them has been made yet, invoking this method
+	 * will cause a {@link ControlFlowExtractor} to try to extract them.
+	 * 
+	 * @param pp the program point
+	 * 
+	 * @return the collection of the guards of all structures containing
+	 *             {@code pp}
+	 */
+	public Collection<Statement> getGuards(ProgramPoint pp) {
+		return getControlFlowsContaining(pp).stream().map(ControlFlowStructure::getCondition)
+				.collect(Collectors.toList());
+	}
+
+	/**
+	 * Yields the guard of all {@link Loop}s containing the given program point.
+	 * If the program point is not part of the body of a loop, this method
+	 * returns an empty collection.<br>
+	 * <br>
+	 * Note that if no control flow structures have been provided by frontends,
+	 * and no attempt at extracting them has been made yet, invoking this method
+	 * will cause a {@link ControlFlowExtractor} to try to extract them.
+	 * 
+	 * @param pp the program point
+	 * 
+	 * @return the collection of the guards of all loops containing {@code pp}
+	 */
+	public Collection<Statement> getLoopGuards(ProgramPoint pp) {
+		return getControlFlowsContaining(pp).stream().filter(Loop.class::isInstance)
+				.map(ControlFlowStructure::getCondition).collect(Collectors.toList());
+	}
+
+	/**
+	 * Yields the guard of all the {@link IfThenElse} containing the given
+	 * program point. If the program point is not part of a branch of an
+	 * if-then-else, this method returns an empty collection.<br>
+	 * <br>
+	 * Note that if no control flow structures have been provided by frontends,
+	 * and no attempt at extracting them has been made yet, invoking this method
+	 * will cause a {@link ControlFlowExtractor} to try to extract them.
+	 * 
+	 * @param pp the program point
+	 * 
+	 * @return the collection of the guards of all if-then-elses containing
+	 *             {@code pp}
+	 */
+	public Collection<Statement> getIfThenElseGuards(ProgramPoint pp) {
+		return getControlFlowsContaining(pp).stream().filter(IfThenElse.class::isInstance)
+				.map(ControlFlowStructure::getCondition).collect(Collectors.toList());
+	}
+
+	private Statement getRecent(ProgramPoint pp, Predicate<ControlFlowStructure> filter) {
+		if (!(pp instanceof Statement))
+			// synthetic pp
+			return null;
+
+		Statement st = (Statement) pp;
+		Collection<ControlFlowStructure> cfs = getControlFlowsContaining(pp);
+		Statement recent = null;
+		int min = Integer.MAX_VALUE, m;
+		for (ControlFlowStructure cf : cfs)
+			if (!filter.test(cf))
+				continue;
+			else if (recent == null) {
+				recent = cf.getCondition();
+				min = cf.distance(st);
+			} else if ((m = cf.distance(st)) < min || min == -1) {
+				recent = cf.getCondition();
+				min = m;
+			}
+
+		if (min == -1)
+			throw new IllegalStateException("Conditional flow structures containing " + pp
+					+ " could not evaluate the distance from the root of the structure to the statement itself");
+
+		return recent;
+	}
+
+	/**
+	 * Yields the guard of the most recent {@link ControlFlowStructure},
+	 * regardless of its type, containing the given program point. If the
+	 * program point is not part of the body of a control structure, this method
+	 * returns {@code null}.<br>
+	 * <br>
+	 * Note that if no control flow structures have been provided by frontends,
+	 * and no attempt at extracting them has been made yet, invoking this method
+	 * will cause a {@link ControlFlowExtractor} to try to extract them.
+	 * 
+	 * @param pp the program point
+	 * 
+	 * @return the most recent if-then-else guard, or {@code null}
+	 */
+	public Statement getMostRecentGuard(ProgramPoint pp) {
+		return getRecent(pp, cf -> true);
+	}
+
+	/**
+	 * Yields the guard of the most recent {@link Loop} containing the given
+	 * program point. If the program point is not part of the body of a loop,
+	 * this method returns {@code null}.<br>
+	 * <br>
+	 * Note that if no control flow structures have been provided by frontends,
+	 * and no attempt at extracting them has been made yet, invoking this method
+	 * will cause a {@link ControlFlowExtractor} to try to extract them.
+	 * 
+	 * @param pp the program point
+	 * 
+	 * @return the most recent loop guard, or {@code null}
+	 */
+	public Statement getMostRecentLoopGuard(ProgramPoint pp) {
+		return getRecent(pp, Loop.class::isInstance);
+	}
+
+	/**
+	 * Yields the guard of the most recent {@link IfThenElse} containing the
+	 * given program point. If the program point is not part of a branch of an
+	 * if-then-else, this method returns {@code null}.<br>
+	 * <br>
+	 * Note that if no control flow structures have been provided by frontends,
+	 * and no attempt at extracting them has been made yet, invoking this method
+	 * will cause a {@link ControlFlowExtractor} to try to extract them.
+	 * 
+	 * @param pp the program point
+	 * 
+	 * @return the most recent if-then-else guard, or {@code null}
+	 */
+	public Statement getMostRecentIfThenElseGuard(ProgramPoint pp) {
+		return getRecent(pp, IfThenElse.class::isInstance);
 	}
 }

@@ -6,9 +6,12 @@ import it.unive.lisa.analysis.SemanticException;
 import it.unive.lisa.analysis.StatementStore;
 import it.unive.lisa.analysis.heap.HeapDomain;
 import it.unive.lisa.analysis.value.ValueDomain;
-import it.unive.lisa.callgraph.CallGraph;
+import it.unive.lisa.interprocedural.InterproceduralAnalysis;
+import it.unive.lisa.program.annotations.Annotation;
+import it.unive.lisa.program.annotations.Annotations;
 import it.unive.lisa.program.cfg.CFG;
 import it.unive.lisa.program.cfg.CodeLocation;
+import it.unive.lisa.program.cfg.VariableTableEntry;
 import it.unive.lisa.program.cfg.edge.Edge;
 import it.unive.lisa.symbolic.SymbolicExpression;
 import it.unive.lisa.symbolic.value.Variable;
@@ -30,28 +33,15 @@ public class VariableRef extends Expression {
 	private final String name;
 
 	/**
-	 * Builds the untyped variable reference, identified by its name. The
-	 * location where this variable reference happens is unknown (i.e. no source
-	 * file/line/column is available) and its type is {@link Untyped#INSTANCE}.
+	 * Builds the untyped variable reference, identified by its name. The type
+	 * of this variable reference is {@link Untyped#INSTANCE}.
 	 * 
-	 * @param cfg  the cfg that this expression belongs to
-	 * @param name the name of this variable
+	 * @param cfg      the cfg that this expression belongs to
+	 * @param location the location of this variable reference
+	 * @param name     the name of this variable reference
 	 */
-	public VariableRef(CFG cfg, String name) {
-		this(cfg, name, Untyped.INSTANCE);
-	}
-
-	/**
-	 * Builds a typed variable reference, identified by its name and its type.
-	 * The location where this variable reference happens is unknown (i.e. no
-	 * source file/line/column is available).
-	 * 
-	 * @param cfg  the cfg that this expression belongs to
-	 * @param name the name of this variable
-	 * @param type the type of this variable
-	 */
-	public VariableRef(CFG cfg, String name, Type type) {
-		this(cfg, null, name, type);
+	public VariableRef(CFG cfg, CodeLocation location, String name) {
+		this(cfg, location, name, Untyped.INSTANCE);
 	}
 
 	/**
@@ -120,14 +110,18 @@ public class VariableRef extends Expression {
 	 * @return the expression representing the variable
 	 */
 	public Variable getVariable() {
-		return new Variable(getRuntimeTypes(), getName());
+		Variable v = new Variable(getRuntimeTypes(), getName());
+		for (Annotation ann : getAnnotations())
+			v.addAnnotation(ann);
+		return v;
 	}
 
 	@Override
 	public <A extends AbstractState<A, H, V>,
 			H extends HeapDomain<H>,
 			V extends ValueDomain<V>> AnalysisState<A, H, V> semantics(
-					AnalysisState<A, H, V> entryState, CallGraph callGraph, StatementStore<A, H, V> expressions)
+					AnalysisState<A, H, V> entryState, InterproceduralAnalysis<A, H, V> interprocedural,
+					StatementStore<A, H, V> expressions)
 					throws SemanticException {
 		SymbolicExpression expr = getVariable();
 		return entryState.smallStepSemantics(expr, this);
@@ -136,5 +130,19 @@ public class VariableRef extends Expression {
 	@Override
 	public <V> boolean accept(GraphVisitor<CFG, Statement, Edge, V> visitor, V tool) {
 		return visitor.visit(tool, getCFG(), this);
+	}
+
+	/**
+	 * Yields the annotations of this variable, retrieved from the variable
+	 * table of the cfg this variable belongs to.
+	 * 
+	 * @return the annotations of this variable.
+	 */
+	public Annotations getAnnotations() {
+		// FIXME the iteration should be performed inside the descriptor
+		for (VariableTableEntry entry : getCFG().getDescriptor().getVariables())
+			if (entry.getName().equals(getName()))
+				return entry.getAnnotations();
+		return new Annotations();
 	}
 }

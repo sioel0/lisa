@@ -6,7 +6,7 @@ import it.unive.lisa.analysis.SemanticException;
 import it.unive.lisa.analysis.StatementStore;
 import it.unive.lisa.analysis.heap.HeapDomain;
 import it.unive.lisa.analysis.value.ValueDomain;
-import it.unive.lisa.callgraph.CallGraph;
+import it.unive.lisa.interprocedural.InterproceduralAnalysis;
 import it.unive.lisa.program.cfg.CFG;
 import it.unive.lisa.program.cfg.CodeLocation;
 import it.unive.lisa.symbolic.value.Skip;
@@ -18,18 +18,6 @@ import it.unive.lisa.symbolic.value.Skip;
  * @author <a href="mailto:luca.negrini@unive.it">Luca Negrini</a>
  */
 public class Throw extends UnaryStatement {
-
-	/**
-	 * Builds the throw, raising {@code expression} as error. The location where
-	 * this throw happens is unknown (i.e. no source file/line/column is
-	 * available).
-	 * 
-	 * @param cfg        the cfg that this statement belongs to
-	 * @param expression the expression to raise as error
-	 */
-	public Throw(CFG cfg, Expression expression) {
-		this(cfg, null, expression);
-	}
 
 	/**
 	 * Builds the throw, raising {@code expression} as error, happening at the
@@ -63,9 +51,10 @@ public class Throw extends UnaryStatement {
 	public <A extends AbstractState<A, H, V>,
 			H extends HeapDomain<H>,
 			V extends ValueDomain<V>> AnalysisState<A, H, V> semantics(
-					AnalysisState<A, H, V> entryState, CallGraph callGraph, StatementStore<A, H, V> expressions)
+					AnalysisState<A, H, V> entryState, InterproceduralAnalysis<A, H, V> interprocedural,
+					StatementStore<A, H, V> expressions)
 					throws SemanticException {
-		AnalysisState<A, H, V> result = getExpression().semantics(entryState, callGraph, expressions);
+		AnalysisState<A, H, V> result = getExpression().semantics(entryState, interprocedural, expressions);
 		expressions.put(getExpression(), result);
 		if (!getExpression().getMetaVariables().isEmpty())
 			result = result.forgetIdentifiers(getExpression().getMetaVariables());

@@ -1,6 +1,10 @@
 package it.unive.lisa.symbolic.value;
 
+import it.unive.lisa.analysis.ScopeToken;
+import it.unive.lisa.analysis.SemanticException;
 import it.unive.lisa.caches.Caches;
+import it.unive.lisa.symbolic.ExpressionVisitor;
+import it.unive.lisa.symbolic.SymbolicExpression;
 import it.unive.lisa.type.Type;
 
 /**
@@ -61,7 +65,22 @@ public class Constant extends ValueExpression {
 	}
 
 	@Override
+	public SymbolicExpression pushScope(ScopeToken token) {
+		return this;
+	}
+
+	@Override
+	public SymbolicExpression popScope(ScopeToken token) throws SemanticException {
+		return this;
+	}
+
+	@Override
 	public String toString() {
 		return value.toString();
+	}
+
+	@Override
+	public <T> T accept(ExpressionVisitor<T> visitor, Object... params) throws SemanticException {
+		return visitor.visit(this, params);
 	}
 }

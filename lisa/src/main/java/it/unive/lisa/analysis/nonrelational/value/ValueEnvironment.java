@@ -8,6 +8,7 @@ import it.unive.lisa.program.cfg.ProgramPoint;
 import it.unive.lisa.symbolic.value.Identifier;
 import it.unive.lisa.symbolic.value.ValueExpression;
 import java.util.Map;
+import org.apache.commons.lang3.tuple.Pair;
 
 /**
  * An environment for a {@link NonRelationalValueDomain}, that maps
@@ -23,7 +24,7 @@ import java.util.Map;
  *                whose instances are mapped in this environment
  */
 public final class ValueEnvironment<T extends NonRelationalValueDomain<T>>
-		extends Environment<ValueEnvironment<T>, ValueExpression, T> implements ValueDomain<ValueEnvironment<T>> {
+		extends Environment<ValueEnvironment<T>, ValueExpression, T, T> implements ValueDomain<ValueEnvironment<T>> {
 
 	/**
 	 * Builds an empty environment.
@@ -35,8 +36,20 @@ public final class ValueEnvironment<T extends NonRelationalValueDomain<T>>
 		super(domain);
 	}
 
-	private ValueEnvironment(T domain, Map<Identifier, T> function) {
+	/**
+	 * Builds an environment from a given map.
+	 * 
+	 * @param domain   a singleton instance to be used during semantic
+	 *                     operations to retrieve top and bottom values
+	 * @param function the starting map
+	 */
+	public ValueEnvironment(T domain, Map<Identifier, T> function) {
 		super(domain, function);
+	}
+
+	@Override
+	protected ValueEnvironment<T> mk(T lattice, Map<Identifier, T> function) {
+		return new ValueEnvironment<>(lattice, function);
 	}
 
 	@Override
@@ -45,8 +58,14 @@ public final class ValueEnvironment<T extends NonRelationalValueDomain<T>>
 	}
 
 	@Override
-	protected ValueEnvironment<T> assignAux(Identifier id, ValueExpression value, Map<Identifier, T> function, T eval,
-			ProgramPoint pp) {
+	protected Pair<T, T> eval(ValueExpression expression, ProgramPoint pp) throws SemanticException {
+		T eval = lattice.eval(expression, this, pp);
+		return Pair.of(eval, eval);
+	}
+
+	@Override
+	protected ValueEnvironment<T> assignAux(Identifier id, ValueExpression expression, Map<Identifier, T> function,
+			T value, T eval, ProgramPoint pp) {
 		return new ValueEnvironment<>(lattice, function);
 	}
 
@@ -55,6 +74,16 @@ public final class ValueEnvironment<T extends NonRelationalValueDomain<T>>
 			throws SemanticException {
 		// the environment does not change without an assignment
 		return this;
+	}
+
+	@Override
+	protected ValueEnvironment<T> assumeSatisfied(T eval) {
+		return this;
+	}
+
+	@Override
+	protected ValueEnvironment<T> glbAux(T lattice, Map<Identifier, T> function, ValueEnvironment<T> other) {
+		return new ValueEnvironment<>(lattice, function);
 	}
 
 	@Override

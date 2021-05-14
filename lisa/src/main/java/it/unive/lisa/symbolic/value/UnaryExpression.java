@@ -1,5 +1,8 @@
 package it.unive.lisa.symbolic.value;
 
+import it.unive.lisa.analysis.ScopeToken;
+import it.unive.lisa.analysis.SemanticException;
+import it.unive.lisa.symbolic.ExpressionVisitor;
 import it.unive.lisa.symbolic.SymbolicExpression;
 import it.unive.lisa.type.Type;
 import it.unive.lisa.util.collections.externalSet.ExternalSet;
@@ -55,6 +58,30 @@ public class UnaryExpression extends ValueExpression {
 	}
 
 	@Override
+	public ValueExpression removeNegations() {
+		if (operator == UnaryOperator.LOGICAL_NOT && expression instanceof BinaryExpression) {
+			BinaryExpression binary = (BinaryExpression) expression;
+			ValueExpression left = (ValueExpression) binary.getLeft();
+			ValueExpression right = (ValueExpression) binary.getRight();
+			BinaryOperator op = binary.getOperator();
+			return new BinaryExpression(binary.getTypes(), left.removeNegations(), right.removeNegations(),
+					(BinaryOperator) op.opposite());
+		}
+
+		return this;
+	}
+
+	@Override
+	public SymbolicExpression pushScope(ScopeToken token) throws SemanticException {
+		return new UnaryExpression(this.getTypes(), this.expression.pushScope(token), this.operator);
+	}
+
+	@Override
+	public SymbolicExpression popScope(ScopeToken token) throws SemanticException {
+		return new UnaryExpression(this.getTypes(), this.expression.popScope(token), this.operator);
+	}
+
+	@Override
 	public int hashCode() {
 		final int prime = 31;
 		int result = super.hashCode();
@@ -85,5 +112,11 @@ public class UnaryExpression extends ValueExpression {
 	@Override
 	public String toString() {
 		return operator.toString() + expression.toString();
+	}
+
+	@Override
+	public <T> T accept(ExpressionVisitor<T> visitor, Object... params) throws SemanticException {
+		T arg = expression.accept(visitor, params);
+		return visitor.visit(this, arg, params);
 	}
 }

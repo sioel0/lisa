@@ -4,8 +4,9 @@ import it.unive.lisa.analysis.AbstractState;
 import it.unive.lisa.analysis.AnalysisState;
 import it.unive.lisa.analysis.SemanticException;
 import it.unive.lisa.analysis.heap.HeapDomain;
+import it.unive.lisa.analysis.lattices.ExpressionSet;
 import it.unive.lisa.analysis.value.ValueDomain;
-import it.unive.lisa.callgraph.CallGraph;
+import it.unive.lisa.interprocedural.InterproceduralAnalysis;
 import it.unive.lisa.program.cfg.CFG;
 import it.unive.lisa.program.cfg.CodeLocation;
 import it.unive.lisa.symbolic.SymbolicExpression;
@@ -13,8 +14,6 @@ import it.unive.lisa.symbolic.value.Identifier;
 import it.unive.lisa.symbolic.value.Skip;
 import it.unive.lisa.symbolic.value.Variable;
 import it.unive.lisa.type.Type;
-import it.unive.lisa.type.Untyped;
-import java.util.Collection;
 import java.util.Objects;
 import org.apache.commons.lang3.StringUtils;
 
@@ -29,32 +28,6 @@ public class OpenCall extends Call implements MetaVariableCreator {
 	 * The name of the target of this call
 	 */
 	private final String targetName;
-
-	/**
-	 * Builds the untyped open call. The location where this call happens is
-	 * unknown (i.e. no source file/line/column is available). The static type
-	 * of this call is {@link Untyped}.
-	 * 
-	 * @param cfg        the cfg that this expression belongs to
-	 * @param targetName the name of the target of this open call
-	 * @param parameters the parameters of this call
-	 */
-	public OpenCall(CFG cfg, String targetName, Expression... parameters) {
-		this(cfg, targetName, Untyped.INSTANCE, parameters);
-	}
-
-	/**
-	 * Builds the open call. The location where this call happens is unknown
-	 * (i.e. no source file/line/column is available).
-	 * 
-	 * @param cfg        the cfg that this expression belongs to
-	 * @param targetName the name of the target of this open call
-	 * @param parameters the parameters of this call
-	 * @param staticType the static type of this call
-	 */
-	public OpenCall(CFG cfg, String targetName, Type staticType, Expression... parameters) {
-		this(cfg, null, targetName, staticType, parameters);
-	}
 
 	/**
 	 * Builds the open call, happening at the given location in the program.
@@ -114,15 +87,16 @@ public class OpenCall extends Call implements MetaVariableCreator {
 
 	@Override
 	public final Identifier getMetaVariable() {
-		return new Variable(getRuntimeTypes(), "open_call_ret_value@" + offset);
+		return new Variable(getRuntimeTypes(), "open_call_ret_value@" + getLocation());
 	}
 
 	@Override
 	public <A extends AbstractState<A, H, V>,
 			H extends HeapDomain<H>,
 			V extends ValueDomain<V>> AnalysisState<A, H, V> callSemantics(
-					AnalysisState<A, H, V> entryState, CallGraph callGraph, AnalysisState<A, H, V>[] computedStates,
-					Collection<SymbolicExpression>[] params)
+					AnalysisState<A, H, V> entryState, InterproceduralAnalysis<A, H, V> interprocedural,
+					AnalysisState<A, H, V>[] computedStates,
+					ExpressionSet<SymbolicExpression>[] params)
 					throws SemanticException {
 		// TODO too coarse
 		AnalysisState<A, H, V> poststate = entryState.top();

@@ -6,7 +6,7 @@ import it.unive.lisa.analysis.SemanticException;
 import it.unive.lisa.analysis.StatementStore;
 import it.unive.lisa.analysis.heap.HeapDomain;
 import it.unive.lisa.analysis.value.ValueDomain;
-import it.unive.lisa.callgraph.CallGraph;
+import it.unive.lisa.interprocedural.InterproceduralAnalysis;
 import it.unive.lisa.program.cfg.CFG;
 import it.unive.lisa.program.cfg.CodeLocation;
 import it.unive.lisa.program.cfg.edge.Edge;
@@ -20,16 +20,6 @@ import it.unive.lisa.util.datastructures.graph.GraphVisitor;
  * @author <a href="mailto:luca.negrini@unive.it">Luca Negrini</a>
  */
 public class NoOp extends Statement {
-
-	/**
-	 * Builds the no-op. The location where this no-op happens is unknown (i.e.
-	 * no source file/line/column is available).
-	 * 
-	 * @param cfg the cfg that this statement belongs to
-	 */
-	public NoOp(CFG cfg) {
-		this(cfg, null);
-	}
 
 	/**
 	 * Builds the no-op, happening at the given location in the program.
@@ -73,7 +63,8 @@ public class NoOp extends Statement {
 	public <A extends AbstractState<A, H, V>,
 			H extends HeapDomain<H>,
 			V extends ValueDomain<V>> AnalysisState<A, H, V> semantics(
-					AnalysisState<A, H, V> entryState, CallGraph callGraph, StatementStore<A, H, V> expressions)
+					AnalysisState<A, H, V> entryState, InterproceduralAnalysis<A, H, V> interprocedural,
+					StatementStore<A, H, V> expressions)
 					throws SemanticException {
 		return entryState.smallStepSemantics(new Skip(), this);
 	}

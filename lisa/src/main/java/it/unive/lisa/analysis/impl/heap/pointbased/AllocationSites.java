@@ -2,14 +2,16 @@ package it.unive.lisa.analysis.impl.heap.pointbased;
 
 import it.unive.lisa.analysis.SemanticDomain.Satisfiability;
 import it.unive.lisa.analysis.SemanticException;
+import it.unive.lisa.analysis.lattices.ExpressionSet;
 import it.unive.lisa.analysis.lattices.SetLattice;
 import it.unive.lisa.analysis.nonrelational.heap.HeapEnvironment;
 import it.unive.lisa.analysis.nonrelational.heap.NonRelationalHeapDomain;
+import it.unive.lisa.analysis.representation.DomainRepresentation;
+import it.unive.lisa.analysis.representation.StringRepresentation;
 import it.unive.lisa.program.cfg.ProgramPoint;
 import it.unive.lisa.symbolic.SymbolicExpression;
 import it.unive.lisa.symbolic.value.Identifier;
 import it.unive.lisa.symbolic.value.ValueExpression;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -88,13 +90,30 @@ public class AllocationSites extends SetLattice<AllocationSites, AllocationSite>
 	}
 
 	@Override
-	public String representation() {
-		return super.toString();
+	public int hashCode() {
+		final int prime = 31;
+		int result = super.hashCode();
+		result = prime * result + (isTop ? 1231 : 1237);
+		return result;
 	}
 
 	@Override
-	public Collection<ValueExpression> getRewrittenExpressions() {
-		return Collections.emptySet();
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (!super.equals(obj))
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		AllocationSites other = (AllocationSites) obj;
+		if (isTop != other.isTop)
+			return false;
+		return true;
+	}
+
+	@Override
+	public DomainRepresentation representation() {
+		return new StringRepresentation(toString());
 	}
 
 	@Override
@@ -132,5 +151,18 @@ public class AllocationSites extends SetLattice<AllocationSites, AllocationSite>
 	@Override
 	public boolean canProcess(SymbolicExpression expression) {
 		return expression.getDynamicType().isPointerType() || expression.getDynamicType().isUntyped();
+	}
+
+	@Override
+	public HeapEnvironment<AllocationSites> assume(HeapEnvironment<AllocationSites> environment,
+			SymbolicExpression expression,
+			ProgramPoint pp) throws SemanticException {
+		return environment;
+	}
+
+	@Override
+	public ExpressionSet<ValueExpression> rewrite(SymbolicExpression expression,
+			HeapEnvironment<AllocationSites> environment, ProgramPoint pp) throws SemanticException {
+		return new ExpressionSet<>();
 	}
 }

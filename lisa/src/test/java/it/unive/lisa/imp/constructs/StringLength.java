@@ -5,13 +5,14 @@ import it.unive.lisa.analysis.AnalysisState;
 import it.unive.lisa.analysis.SemanticException;
 import it.unive.lisa.analysis.heap.HeapDomain;
 import it.unive.lisa.analysis.value.ValueDomain;
-import it.unive.lisa.callgraph.CallGraph;
 import it.unive.lisa.imp.types.IntType;
 import it.unive.lisa.imp.types.StringType;
+import it.unive.lisa.interprocedural.InterproceduralAnalysis;
 import it.unive.lisa.program.CompilationUnit;
 import it.unive.lisa.program.SourceCodeLocation;
 import it.unive.lisa.program.cfg.CFG;
 import it.unive.lisa.program.cfg.CFGDescriptor;
+import it.unive.lisa.program.cfg.CodeLocation;
 import it.unive.lisa.program.cfg.NativeCFG;
 import it.unive.lisa.program.cfg.Parameter;
 import it.unive.lisa.program.cfg.statement.Expression;
@@ -35,9 +36,9 @@ public class StringLength extends NativeCFG {
 	 * 
 	 * @param stringUnit the unit where this construct is defined
 	 */
-	public StringLength(CompilationUnit stringUnit) {
-		super(new CFGDescriptor(stringUnit, true, "len", IntType.INSTANCE,
-				new Parameter("this", StringType.INSTANCE)),
+	public StringLength(CodeLocation location, CompilationUnit stringUnit) {
+		super(new CFGDescriptor(location, stringUnit, true, "len", IntType.INSTANCE,
+				new Parameter(location, "this", StringType.INSTANCE)),
 				IMPStringLength.class);
 	}
 
@@ -76,7 +77,8 @@ public class StringLength extends NativeCFG {
 		protected <A extends AbstractState<A, H, V>,
 				H extends HeapDomain<H>,
 				V extends ValueDomain<V>> AnalysisState<A, H, V> unarySemantics(AnalysisState<A, H, V> entryState,
-						CallGraph callGraph, AnalysisState<A, H, V> exprState, SymbolicExpression expr)
+						InterproceduralAnalysis<A, H, V> interprocedural, AnalysisState<A, H, V> exprState,
+						SymbolicExpression expr)
 						throws SemanticException {
 			// we allow untyped for the type inference phase
 			if (!expr.getDynamicType().isStringType() && !expr.getDynamicType().isUntyped())

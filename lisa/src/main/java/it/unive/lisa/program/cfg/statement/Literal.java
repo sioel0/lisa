@@ -6,7 +6,7 @@ import it.unive.lisa.analysis.SemanticException;
 import it.unive.lisa.analysis.StatementStore;
 import it.unive.lisa.analysis.heap.HeapDomain;
 import it.unive.lisa.analysis.value.ValueDomain;
-import it.unive.lisa.callgraph.CallGraph;
+import it.unive.lisa.interprocedural.InterproceduralAnalysis;
 import it.unive.lisa.program.cfg.CFG;
 import it.unive.lisa.program.cfg.CodeLocation;
 import it.unive.lisa.program.cfg.edge.Edge;
@@ -26,19 +26,6 @@ public class Literal extends Expression {
 	 * The value of this literal
 	 */
 	private final Object value;
-
-	/**
-	 * Builds a typed literal, consisting of a constant value. The location
-	 * where this literal happens is unknown (i.e. no source file/line/column is
-	 * available).
-	 * 
-	 * @param cfg        the cfg that this literal belongs to
-	 * @param value      the value of this literal
-	 * @param staticType the type of this literal
-	 */
-	public Literal(CFG cfg, Object value, Type staticType) {
-		this(cfg, null, value, staticType);
-	}
 
 	/**
 	 * Builds a typed literal, consisting of a constant value, happening at the
@@ -104,7 +91,8 @@ public class Literal extends Expression {
 	public <A extends AbstractState<A, H, V>,
 			H extends HeapDomain<H>,
 			V extends ValueDomain<V>> AnalysisState<A, H, V> semantics(
-					AnalysisState<A, H, V> entryState, CallGraph callGraph, StatementStore<A, H, V> expressions)
+					AnalysisState<A, H, V> entryState, InterproceduralAnalysis<A, H, V> interprocedural,
+					StatementStore<A, H, V> expressions)
 					throws SemanticException {
 		return entryState.smallStepSemantics(new Constant(getStaticType(), getValue()), this);
 	}

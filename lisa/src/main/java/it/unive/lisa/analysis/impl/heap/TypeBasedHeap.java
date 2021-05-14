@@ -2,7 +2,10 @@ package it.unive.lisa.analysis.impl.heap;
 
 import it.unive.lisa.analysis.SemanticException;
 import it.unive.lisa.analysis.heap.BaseHeapDomain;
-import it.unive.lisa.caches.Caches;
+import it.unive.lisa.analysis.lattices.ExpressionSet;
+import it.unive.lisa.analysis.representation.DomainRepresentation;
+import it.unive.lisa.analysis.representation.SetRepresentation;
+import it.unive.lisa.analysis.representation.StringRepresentation;
 import it.unive.lisa.program.cfg.ProgramPoint;
 import it.unive.lisa.symbolic.SymbolicExpression;
 import it.unive.lisa.symbolic.heap.AccessChild;
@@ -13,14 +16,12 @@ import it.unive.lisa.symbolic.value.Identifier;
 import it.unive.lisa.symbolic.value.Skip;
 import it.unive.lisa.symbolic.value.ValueExpression;
 import it.unive.lisa.type.Type;
-import it.unive.lisa.util.collections.Utils;
-import java.util.Collection;
+import it.unive.lisa.util.collections.externalSet.ExternalSet;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.TreeSet;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.SetUtils;
 
 /**
  * A type-based heap implementation that abstracts heap locations depending on
@@ -35,43 +36,40 @@ public class TypeBasedHeap extends BaseHeapDomain<TypeBasedHeap> {
 
 	private static final TypeBasedHeap BOTTOM = new TypeBasedHeap();
 
-	private final Collection<ValueExpression> rewritten;
-
-	private final Collection<String> names;
+	private final Set<String> names;
 
 	/**
 	 * Builds a new instance of TypeBasedHeap, with an unique rewritten
 	 * expression {@link Skip}.
 	 */
 	public TypeBasedHeap() {
-		this(new Skip());
+		this(new HashSet<>());
 	}
 
-	private TypeBasedHeap(ValueExpression rewritten) {
-		this(Collections.singleton(rewritten), new HashSet<>());
-	}
-
-	private TypeBasedHeap(Collection<ValueExpression> rewritten, Collection<String> names) {
-		this.rewritten = rewritten;
+	private TypeBasedHeap(Set<String> names) {
 		this.names = names;
+	}
+
+	@Override
+	public ExpressionSet<ValueExpression> rewrite(SymbolicExpression expression, ProgramPoint pp)
+			throws SemanticException {
+		return expression.accept(new Rewriter());
 	}
 
 	@Override
 	public TypeBasedHeap assign(Identifier id, SymbolicExpression expression, ProgramPoint pp)
 			throws SemanticException {
-		// we just rewrite the expression if needed
-		return smallStepSemantics(expression, pp);
+		return this;
 	}
 
 	@Override
 	public TypeBasedHeap assume(SymbolicExpression expression, ProgramPoint pp) throws SemanticException {
-		// we just rewrite the expression if needed
-		return smallStepSemantics(expression, pp);
+		return this;
 	}
 
 	@Override
 	public TypeBasedHeap forgetIdentifier(Identifier id) throws SemanticException {
-		return new TypeBasedHeap(rewritten, names);
+		return this;
 	}
 
 	@Override
@@ -81,11 +79,8 @@ public class TypeBasedHeap extends BaseHeapDomain<TypeBasedHeap> {
 	}
 
 	@Override
-	public String representation() {
-		Collection<String> res = new TreeSet<String>(
-				(l, r) -> Utils.nullSafeCompare(true, l, r, (ll, rr) -> ll.toString().compareTo(rr.toString())));
-		res.addAll(names);
-		return res.toString();
+	public DomainRepresentation representation() {
+		return new SetRepresentation(names, StringRepresentation::new);
 	}
 
 	@Override
@@ -99,18 +94,13 @@ public class TypeBasedHeap extends BaseHeapDomain<TypeBasedHeap> {
 	}
 
 	@Override
-	public Collection<ValueExpression> getRewrittenExpressions() {
-		return rewritten;
-	}
-
-	@Override
 	public List<HeapReplacement> getSubstitution() {
 		return Collections.emptyList();
 	}
 
 	@Override
-	protected TypeBasedHeap mk(TypeBasedHeap reference, ValueExpression expression) {
-		return new TypeBasedHeap(Collections.singleton(expression), reference.names);
+	protected TypeBasedHeap mk(TypeBasedHeap reference) {
+		return this;
 	}
 
 	@Override
@@ -120,40 +110,31 @@ public class TypeBasedHeap extends BaseHeapDomain<TypeBasedHeap> {
 			TypeBasedHeap containerState = smallStepSemantics(access.getContainer(), pp);
 			TypeBasedHeap childState = containerState.smallStepSemantics(access.getChild(), pp);
 
-			Set<ValueExpression> ids = new HashSet<>();
 			Set<String> names = new HashSet<>(childState.names);
 
-			for (SymbolicExpression o : containerState.getRewrittenExpressions())
-				for (Type type : o.getTypes()) {
-					if (type.isPointerType()) {
-						ids.add(new HeapLocation(access.getTypes(), type.toString(), true));
+			for (ValueExpression cont : containerState.rewrite(access.getContainer(), pp))
+				for (Type type : cont.getTypes())
+					if (type.isPointerType())
 						names.add(type.toString());
-					}
-				}
 
-			return new TypeBasedHeap(ids, names);
+			return new TypeBasedHeap(names);
 		}
 
 		if (expression instanceof HeapAllocation) {
-			Set<ValueExpression> ids = new HashSet<>();
 			Set<String> names = new HashSet<>(this.names);
 			for (Type type : expression.getTypes())
-				if (type.isPointerType()) {
-					ids.add(new HeapLocation(Caches.types().mkSingletonSet(type), type.toString(), true));
+				if (type.isPointerType())
 					names.add(type.toString());
-				}
 
-			return new TypeBasedHeap(ids, names);
+			return new TypeBasedHeap(names);
 		}
 
 		return top();
 	}
 
 	@Override
-	@SuppressWarnings("unchecked")
 	protected TypeBasedHeap lubAux(TypeBasedHeap other) throws SemanticException {
-		return new TypeBasedHeap(CollectionUtils.union(rewritten, other.rewritten),
-				CollectionUtils.union(names, other.names));
+		return new TypeBasedHeap(SetUtils.union(names, other.names));
 	}
 
 	@Override
@@ -171,7 +152,6 @@ public class TypeBasedHeap extends BaseHeapDomain<TypeBasedHeap> {
 		final int prime = 31;
 		int result = 1;
 		result = prime * result + ((names == null) ? 0 : names.hashCode());
-		result = prime * result + ((rewritten == null) ? 0 : rewritten.hashCode());
 		return result;
 	}
 
@@ -189,11 +169,33 @@ public class TypeBasedHeap extends BaseHeapDomain<TypeBasedHeap> {
 				return false;
 		} else if (!names.equals(other.names))
 			return false;
-		if (rewritten == null) {
-			if (other.rewritten != null)
-				return false;
-		} else if (!rewritten.equals(other.rewritten))
-			return false;
 		return true;
+	}
+
+	private static class Rewriter extends BaseHeapDomain.Rewriter {
+
+		@Override
+		public ExpressionSet<ValueExpression> visit(AccessChild expression, ExpressionSet<ValueExpression> receiver,
+				ExpressionSet<ValueExpression> child, Object... params) throws SemanticException {
+			// we use the container because we are not field-sensitive
+			ExternalSet<Type> types = expression.getTypes();
+			Set<ValueExpression> result = new HashSet<>();
+			for (ValueExpression rec : receiver)
+				for (Type t : rec.getTypes())
+					if (t.isPointerType())
+						result.add(new HeapLocation(types, t.toString(), true));
+			return new ExpressionSet<>(result);
+		}
+
+		@Override
+		public ExpressionSet<ValueExpression> visit(HeapAllocation expression, Object... params)
+				throws SemanticException {
+			ExternalSet<Type> types = expression.getTypes();
+			Set<ValueExpression> result = new HashSet<>();
+			for (Type t : types)
+				if (t.isPointerType())
+					result.add(new HeapLocation(types, t.toString(), true));
+			return new ExpressionSet<>(result);
+		}
 	}
 }

@@ -6,7 +6,7 @@ import it.unive.lisa.analysis.SemanticException;
 import it.unive.lisa.analysis.StatementStore;
 import it.unive.lisa.analysis.heap.HeapDomain;
 import it.unive.lisa.analysis.value.ValueDomain;
-import it.unive.lisa.callgraph.CallGraph;
+import it.unive.lisa.interprocedural.InterproceduralAnalysis;
 import it.unive.lisa.program.Global;
 import it.unive.lisa.program.Unit;
 import it.unive.lisa.program.cfg.CFG;
@@ -31,19 +31,6 @@ public class AccessGlobal extends Expression {
 	 * The global being accessed
 	 */
 	private final Global target;
-
-	/**
-	 * Builds the global access. The location where this access happens is
-	 * unknown (i.e. no source file/line/column is available) and its type is
-	 * the one of the accessed global.
-	 * 
-	 * @param cfg       the cfg that this expression belongs to
-	 * @param container the unit containing the accessed global
-	 * @param target    the accessed global
-	 */
-	public AccessGlobal(CFG cfg, Unit container, Global target) {
-		this(cfg, null, container, target);
-	}
 
 	/**
 	 * Builds the global access, happening at the given location in the program.
@@ -80,9 +67,10 @@ public class AccessGlobal extends Expression {
 	public <A extends AbstractState<A, H, V>,
 			H extends HeapDomain<H>,
 			V extends ValueDomain<V>> AnalysisState<A, H, V> semantics(AnalysisState<A, H, V> entryState,
-					CallGraph callGraph, StatementStore<A, H, V> expressions) throws SemanticException {
+					InterproceduralAnalysis<A, H, V> interprocedural, StatementStore<A, H, V> expressions)
+					throws SemanticException {
 		// unit globals are unique, we can directly access those
-		return entryState.smallStepSemantics(new Variable(getRuntimeTypes(), toString()), this);
+		return entryState.smallStepSemantics(new Variable(getRuntimeTypes(), toString(), target.getAnnotations()),
+				this);
 	}
-
 }

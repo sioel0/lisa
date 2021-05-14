@@ -3,11 +3,9 @@ package it.unive.lisa.analysis.lattices;
 import it.unive.lisa.analysis.BaseLattice;
 import it.unive.lisa.analysis.Lattice;
 import it.unive.lisa.analysis.SemanticException;
-import it.unive.lisa.util.collections.Utils;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
-import java.util.TreeSet;
 
 /**
  * A generic set lattice containing a set of elements. Lattice operations
@@ -63,6 +61,30 @@ public abstract class SetLattice<S extends SetLattice<S, E>, E> extends BaseLatt
 		Set<E> lub = new HashSet<>(elements);
 		lub.addAll(other.elements);
 		return mk(lub);
+	}
+
+	/**
+	 * Performs the greatest lower bound between this set lattice element and
+	 * the given one.
+	 * 
+	 * @param other the other set lattice element
+	 * 
+	 * @return the greatest lower bound between this and other
+	 * 
+	 * @throws SemanticException if an error occurs during the computation
+	 */
+	@SuppressWarnings("unchecked")
+	public final S glb(S other) throws SemanticException {
+		if (other == null || this.isBottom() || other.isTop() || this == other || this.equals(other)
+				|| this.lessOrEqual(other))
+			return (S) this;
+
+		if (other.isBottom() || this.isTop() || other.lessOrEqual((S) this))
+			return (S) other;
+
+		Set<E> glb = new HashSet<>(elements);
+		glb.retainAll(other.elements);
+		return mk(glb);
 	}
 
 	@Override
@@ -134,9 +156,26 @@ public abstract class SetLattice<S extends SetLattice<S, E>, E> extends BaseLatt
 		if (isBottom())
 			return Lattice.BOTTOM_STRING;
 
-		Set<E> tmp = new TreeSet<>(
-				(l, r) -> Utils.nullSafeCompare(true, l, r, (ll, rr) -> ll.toString().compareTo(rr.toString())));
-		tmp.addAll(elements);
-		return tmp.toString();
+		return elements.toString();
+	}
+
+	/**
+	 * Returns the number of elements in this lattice (its cardinality). If this
+	 * lattice contains more than {@code Integer.MAX_VALUE} elements, returns
+	 * {@code Integer.MAX_VALUE}.
+	 *
+	 * @return the number of elements in this lattice (its cardinality)
+	 */
+	public int size() {
+		return elements.size();
+	}
+
+	/**
+	 * Returns {@code true} if this set contains no elements.
+	 *
+	 * @return {@code true} if this set contains no elements
+	 */
+	public boolean isEmpty() {
+		return elements.isEmpty();
 	}
 }

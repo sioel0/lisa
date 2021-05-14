@@ -5,14 +5,15 @@ import it.unive.lisa.analysis.AnalysisState;
 import it.unive.lisa.analysis.SemanticException;
 import it.unive.lisa.analysis.heap.HeapDomain;
 import it.unive.lisa.analysis.value.ValueDomain;
-import it.unive.lisa.callgraph.CallGraph;
 import it.unive.lisa.imp.types.BoolType;
 import it.unive.lisa.imp.types.IntType;
 import it.unive.lisa.imp.types.StringType;
+import it.unive.lisa.interprocedural.InterproceduralAnalysis;
 import it.unive.lisa.program.CompilationUnit;
 import it.unive.lisa.program.SourceCodeLocation;
 import it.unive.lisa.program.cfg.CFG;
 import it.unive.lisa.program.cfg.CFGDescriptor;
+import it.unive.lisa.program.cfg.CodeLocation;
 import it.unive.lisa.program.cfg.NativeCFG;
 import it.unive.lisa.program.cfg.Parameter;
 import it.unive.lisa.program.cfg.statement.Expression;
@@ -39,10 +40,11 @@ public class StringSubstring extends NativeCFG {
 	 * 
 	 * @param stringUnit the unit where this construct is defined
 	 */
-	public StringSubstring(CompilationUnit stringUnit) {
-		super(new CFGDescriptor(stringUnit, true, "substring", BoolType.INSTANCE,
-				new Parameter("this", StringType.INSTANCE), new Parameter("start", IntType.INSTANCE),
-				new Parameter("end", IntType.INSTANCE)),
+	public StringSubstring(CodeLocation location, CompilationUnit stringUnit) {
+		super(new CFGDescriptor(location, stringUnit, true, "substring", BoolType.INSTANCE,
+				new Parameter(location, "this", StringType.INSTANCE),
+				new Parameter(location, "start", IntType.INSTANCE),
+				new Parameter(location, "end", IntType.INSTANCE)),
 				IMPStringSubstring.class);
 	}
 
@@ -85,7 +87,8 @@ public class StringSubstring extends NativeCFG {
 		protected <A extends AbstractState<A, H, V>,
 				H extends HeapDomain<H>,
 				V extends ValueDomain<V>> AnalysisState<A, H, V> ternarySemantics(AnalysisState<A, H, V> entryState,
-						CallGraph callGraph, AnalysisState<A, H, V> leftState, SymbolicExpression leftExp,
+						InterproceduralAnalysis<A, H, V> interprocedural, AnalysisState<A, H, V> leftState,
+						SymbolicExpression leftExp,
 						AnalysisState<A, H, V> middleState, SymbolicExpression middleExp,
 						AnalysisState<A, H, V> rightState, SymbolicExpression rightExp) throws SemanticException {
 			// we allow untyped for the type inference phase

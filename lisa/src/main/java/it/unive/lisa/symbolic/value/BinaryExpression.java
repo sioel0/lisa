@@ -1,5 +1,8 @@
 package it.unive.lisa.symbolic.value;
 
+import it.unive.lisa.analysis.ScopeToken;
+import it.unive.lisa.analysis.SemanticException;
+import it.unive.lisa.symbolic.ExpressionVisitor;
 import it.unive.lisa.symbolic.SymbolicExpression;
 import it.unive.lisa.type.Type;
 import it.unive.lisa.util.collections.externalSet.ExternalSet;
@@ -72,6 +75,16 @@ public class BinaryExpression extends ValueExpression {
 	}
 
 	@Override
+	public SymbolicExpression pushScope(ScopeToken token) throws SemanticException {
+		return new BinaryExpression(this.getTypes(), left.pushScope(token), right.pushScope(token), operator);
+	}
+
+	@Override
+	public SymbolicExpression popScope(ScopeToken token) throws SemanticException {
+		return new BinaryExpression(this.getTypes(), left.popScope(token), right.popScope(token), operator);
+	}
+
+	@Override
 	public int hashCode() {
 		final int prime = 31;
 		int result = super.hashCode();
@@ -108,5 +121,12 @@ public class BinaryExpression extends ValueExpression {
 	@Override
 	public String toString() {
 		return left + " " + operator + " " + right;
+	}
+
+	@Override
+	public <T> T accept(ExpressionVisitor<T> visitor, Object... params) throws SemanticException {
+		T left = this.left.accept(visitor, params);
+		T right = this.right.accept(visitor, params);
+		return visitor.visit(this, left, right, params);
 	}
 }

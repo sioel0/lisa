@@ -4,8 +4,10 @@ import it.unive.lisa.analysis.AbstractState;
 import it.unive.lisa.analysis.AnalysisState;
 import it.unive.lisa.analysis.SemanticException;
 import it.unive.lisa.analysis.heap.HeapDomain;
+import it.unive.lisa.analysis.lattices.ExpressionSet;
 import it.unive.lisa.analysis.value.ValueDomain;
-import it.unive.lisa.callgraph.CallGraph;
+import it.unive.lisa.interprocedural.InterproceduralAnalysis;
+import it.unive.lisa.program.annotations.Annotation;
 import it.unive.lisa.program.cfg.CFG;
 import it.unive.lisa.program.cfg.CodeLocation;
 import it.unive.lisa.symbolic.SymbolicExpression;
@@ -36,32 +38,6 @@ public class CFGCall extends Call implements MetaVariableCreator {
 	 * The qualified name of the static target of this call
 	 */
 	private final String qualifiedName;
-
-	/**
-	 * Builds the CFG call. The location where this call happens is unknown
-	 * (i.e. no source file/line/column is available).
-	 * 
-	 * @param cfg           the cfg that this expression belongs to
-	 * @param qualifiedName the qualified name of the static target of this call
-	 * @param target        the CFG that is targeted by this CFG call.
-	 * @param parameters    the parameters of this call
-	 */
-	public CFGCall(CFG cfg, String qualifiedName, CFG target, Expression... parameters) {
-		this(cfg, null, qualifiedName, target, parameters);
-	}
-
-	/**
-	 * Builds the CFG call. The location where this call happens is unknown
-	 * (i.e. no source file/line/column is available).
-	 * 
-	 * @param cfg           the cfg that this expression belongs to
-	 * @param qualifiedName the qualified name of the static target of this call
-	 * @param targets       the CFGs that are targeted by this CFG call.
-	 * @param parameters    the parameters of this call
-	 */
-	public CFGCall(CFG cfg, String qualifiedName, Collection<CFG> targets, Expression... parameters) {
-		this(cfg, null, qualifiedName, targets, parameters);
-	}
 
 	/**
 	 * Builds the CFG call, happening at the given location in the program.
@@ -143,6 +119,7 @@ public class CFGCall extends Call implements MetaVariableCreator {
 		final int prime = 31;
 		int result = super.hashCode();
 		result = prime * result + ((targets == null) ? 0 : targets.hashCode());
+		result = prime * result + ((qualifiedName == null) ? 0 : qualifiedName.hashCode());
 		return result;
 	}
 
@@ -175,47 +152,64 @@ public class CFGCall extends Call implements MetaVariableCreator {
 
 	@Override
 	public final Identifier getMetaVariable() {
-		return new Variable(getRuntimeTypes(), "call_ret_value@" + offset);
+		return new Variable(getRuntimeTypes(), "call_ret_value@" + getLocation());
 	}
 
 	@Override
 	public <A extends AbstractState<A, H, V>,
 			H extends HeapDomain<H>,
 			V extends ValueDomain<V>> AnalysisState<A, H, V> callSemantics(
-					AnalysisState<A, H, V> entryState, CallGraph callGraph, AnalysisState<A, H, V>[] computedStates,
-					Collection<SymbolicExpression>[] params)
+					AnalysisState<A, H, V> entryState, InterproceduralAnalysis<A, H, V> interprocedural,
+					AnalysisState<A, H, V>[] computedStates,
+					ExpressionSet<SymbolicExpression>[] params)
 					throws SemanticException {
 		// it corresponds to the analysis state after the evaluation of all the
 		// parameters of this call, it is the entry state if this call has no
-		// parameters
-		// (the semantics of this call does not need information about the
-		// intermediate analysis states)
-		AnalysisState<A, H,
-				V> lastPostState = computedStates.length == 0 ? entryState : computedStates[computedStates.length - 1];
+		// parameters (the semantics of this call does not need information
+		// about the intermediate analysis states)
+		AnalysisState<A, H, V> callState = computedStates.length == 0
+				? entryState
+				: computedStates[computedStates.length - 1];
+		// the stack has to be empty
+		callState = new AnalysisState<>(callState.getState(), new ExpressionSet<>());
 
 		// this will contain only the information about the returned
 		// metavariable
-		AnalysisState<A, H, V> returned = callGraph.getAbstractResultOf(this, lastPostState, params);
+		AnalysisState<A, H, V> returned = interprocedural.getAbstractResultOf(this, callState, params);
 		// the lub will include the metavariable inside the state
-		AnalysisState<A, H, V> lub = lastPostState.lub(returned);
+		// AnalysisState<A, H, V> lub = lastPostState.lub(returned);
 
-		if (getStaticType().isVoidType())
+		if (getStaticType().isVoidType() ||
+				(getStaticType().isUntyped() && returned.getComputedExpressions().isEmpty()) ||
+				(returned.getComputedExpressions().size() == 1
+						&& returned.getComputedExpressions().iterator().next() instanceof Skip))
 			// no need to add the meta variable since nothing has been pushed on
 			// the stack
-			return lub.smallStepSemantics(new Skip(), this);
+			return returned.smallStepSemantics(new Skip(), this);
 
 		Identifier meta = getMetaVariable();
 		for (SymbolicExpression expr : returned.getComputedExpressions())
+			// if(! (expr instanceof Skip)) //It might be the case it chose a
+			// target with void return type
 			getMetaVariables().add((Identifier) expr);
+
+		// propagates the annotations of the targets
+		// to the metavariable of this cfg call
+		for (CFG target : targets)
+			for (Annotation ann : target.getDescriptor().getAnnotations())
+				meta.addAnnotation(ann);
+
 		getMetaVariables().add(meta);
 
-		AnalysisState<A, H, V> result = null;
-		for (SymbolicExpression expr : lub.getComputedExpressions()) {
-			AnalysisState<A, H, V> tmp = lub.assign(meta, expr, this);
-			if (result == null)
-				result = tmp;
-			else
-				result = result.lub(tmp);
+		AnalysisState<A, H, V> result = returned.bottom();
+		for (SymbolicExpression expr : returned.getComputedExpressions())
+		// if(! (expr instanceof Skip))
+		{
+			AnalysisState<A, H, V> tmp = returned.assign((Identifier) meta, expr, this);
+			result = result.lub(tmp.smallStepSemantics(meta, this));
+			// We need to perform this evaluation of the identifier not pushed
+			// with the scope since otherwise
+			// the value associated with the returned variable would be lost
 		}
 
 		return result;
