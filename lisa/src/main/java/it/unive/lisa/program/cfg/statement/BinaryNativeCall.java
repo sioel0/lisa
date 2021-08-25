@@ -21,36 +21,6 @@ import it.unive.lisa.type.Untyped;
 public abstract class BinaryNativeCall extends NativeCall {
 
 	/**
-	 * Builds the untyped native call. The location where this call happens is
-	 * unknown (i.e. no source file/line/column is available). The static type
-	 * of this call is {@link Untyped}.
-	 * 
-	 * @param cfg           the cfg that this expression belongs to
-	 * @param constructName the name of the construct invoked by this native
-	 *                          call
-	 * @param left          the first parameter of this call
-	 * @param right         the second parameter of this call
-	 */
-	protected BinaryNativeCall(CFG cfg, String constructName, Expression left, Expression right) {
-		super(cfg, constructName, left, right);
-	}
-
-	/**
-	 * Builds the native call. The location where this call happens is unknown
-	 * (i.e. no source file/line/column is available).
-	 * 
-	 * @param cfg           the cfg that this expression belongs to
-	 * @param constructName the name of the construct invoked by this native
-	 *                          call
-	 * @param staticType    the static type of this call
-	 * @param left          the first parameter of this call
-	 * @param right         the second parameter of this call
-	 */
-	protected BinaryNativeCall(CFG cfg, String constructName, Type staticType, Expression left, Expression right) {
-		super(cfg, constructName, staticType, left, right);
-	}
-
-	/**
 	 * Builds the untyped native call, happening at the given location in the
 	 * program. The static type of this call is {@link Untyped}.
 	 * 
@@ -92,16 +62,13 @@ public abstract class BinaryNativeCall extends NativeCall {
 					InterproceduralAnalysis<A, H, V> interprocedural, AnalysisState<A, H, V>[] computedStates,
 					ExpressionSet<SymbolicExpression>[] params)
 					throws SemanticException {
-		AnalysisState<A, H, V> result = null;
+		AnalysisState<A, H, V> result = entryState.bottom();
 
 		for (SymbolicExpression left : params[0])
 			for (SymbolicExpression right : params[1]) {
 				AnalysisState<A, H, V> tmp = binarySemantics(entryState, interprocedural, computedStates[0], left,
 						computedStates[1], right);
-				if (result == null)
-					result = tmp;
-				else
-					result = result.lub(tmp);
+				result = result.lub(tmp);
 			}
 
 		return result;

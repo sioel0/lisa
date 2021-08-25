@@ -94,24 +94,50 @@ public class AnalysisState<A extends AbstractState<A, H, V>, H extends HeapDomai
 	public AnalysisState<A, H, V> assign(Identifier id, SymbolicExpression value, ProgramPoint pp)
 			throws SemanticException {
 		A s = state.assign(id, value, pp);
-		ExpressionSet<SymbolicExpression> exprs = new ExpressionSet<>(
-				s.getHeapState().rewrite(id, pp).elements()
-						.stream()
-						.map(e -> (SymbolicExpression) e).collect(Collectors.toSet()));
-		return new AnalysisState<A, H, V>(s, exprs);
+		return new AnalysisState<>(s, new ExpressionSet<>(id));
+	}
+
+	/**
+	 * Yields a copy of this analysis state, where the symbolic expression
+	 * {@code id} has been assigned to {@code value}: if {@code id} is not an
+	 * {@code Identifier}, then it is rewritten before performing the
+	 * assignment.
+	 * 
+	 * @param id         the symbolic expression to be assigned
+	 * @param expression the expression to assign
+	 * @param pp         the program point that where this operation is being
+	 *                       evaluated
+	 * 
+	 * @return a copy of this analysis state, modified by the assignment
+	 * 
+	 * @throws SemanticException if an error occurs during the computation
+	 */
+	public AnalysisState<A, H, V> assign(SymbolicExpression id, SymbolicExpression expression, ProgramPoint pp)
+			throws SemanticException {
+
+		if (id instanceof Identifier)
+			return assign((Identifier) id, expression, pp);
+
+		A s = state.bottom();
+		ExpressionSet<SymbolicExpression> rewritten = rewrite(id, pp);
+		for (SymbolicExpression i : rewritten)
+			s = s.lub(state.assign((Identifier) i, expression, pp));
+		return new AnalysisState<>(s, rewritten);
 	}
 
 	@Override
 	public AnalysisState<A, H, V> smallStepSemantics(SymbolicExpression expression, ProgramPoint pp)
 			throws SemanticException {
 		A s = state.smallStepSemantics(expression, pp);
-		// we need to rewrite expression: if it ends up being used as
-		// left-hand side of an assignment, it has to be translated
-		// to an identifier
-		ExpressionSet<SymbolicExpression> exprs = new ExpressionSet<>(
-				s.getHeapState().rewrite(expression, pp).elements().stream()
-						.map(e -> (SymbolicExpression) e).collect(Collectors.toSet()));
-		return new AnalysisState<>(s, exprs);
+		return new AnalysisState<>(s, new ExpressionSet<>(expression));
+	}
+
+	private ExpressionSet<SymbolicExpression> rewrite(SymbolicExpression expression, ProgramPoint pp)
+			throws SemanticException {
+		return new ExpressionSet<>(
+				getState().getHeapState().rewrite(expression, pp).elements()
+						.stream()
+						.map(SymbolicExpression.class::cast).collect(Collectors.toSet()));
 	}
 
 	@Override
@@ -126,11 +152,12 @@ public class AnalysisState<A extends AbstractState<A, H, V>, H extends HeapDomai
 
 	@Override
 	public AnalysisState<A, H, V> pushScope(ScopeToken scope) throws SemanticException {
-		return new AnalysisState<A, H, V>(state.pushScope(scope),
+		return new AnalysisState<>(state.pushScope(scope),
 				onAllExpressions(this.computedExpressions, scope, true));
 	}
 
-	private ExpressionSet<SymbolicExpression> onAllExpressions(ExpressionSet<SymbolicExpression> computedExpressions,
+	private static ExpressionSet<SymbolicExpression> onAllExpressions(
+			ExpressionSet<SymbolicExpression> computedExpressions,
 			ScopeToken scope, boolean push) throws SemanticException {
 		Set<SymbolicExpression> result = new HashSet<>();
 		for (SymbolicExpression exp : computedExpressions)
@@ -140,7 +167,7 @@ public class AnalysisState<A extends AbstractState<A, H, V>, H extends HeapDomai
 
 	@Override
 	public AnalysisState<A, H, V> popScope(ScopeToken scope) throws SemanticException {
-		return new AnalysisState<A, H, V>(state.popScope(scope),
+		return new AnalysisState<>(state.popScope(scope),
 				onAllExpressions(this.computedExpressions, scope, false));
 	}
 
@@ -225,7 +252,7 @@ public class AnalysisState<A extends AbstractState<A, H, V>, H extends HeapDomai
 				new SetRepresentation(computedExpressions.elements(), StringRepresentation::new));
 	}
 
-	private static class AnalysisStateRepresentation extends DomainRepresentation {
+	private static final class AnalysisStateRepresentation extends DomainRepresentation {
 		private final DomainRepresentation state;
 		private final DomainRepresentation expressions;
 

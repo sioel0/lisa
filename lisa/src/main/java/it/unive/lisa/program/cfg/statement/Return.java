@@ -48,7 +48,7 @@ public class Return extends UnaryStatement implements MetaVariableCreator {
 	@Override
 	public final Identifier getMetaVariable() {
 		return new Variable(getExpression().getRuntimeTypes(),
-				"ret_value@" + getCFG().getDescriptor().getName());
+				"ret_value@" + getCFG().getDescriptor().getName(), getLocation());
 	}
 
 	@Override
@@ -61,14 +61,11 @@ public class Return extends UnaryStatement implements MetaVariableCreator {
 		AnalysisState<A, H, V> exprResult = getExpression().semantics(entryState, interprocedural, expressions);
 		expressions.put(getExpression(), exprResult);
 
-		AnalysisState<A, H, V> result = null;
+		AnalysisState<A, H, V> result = entryState.bottom();
 		Identifier meta = getMetaVariable();
 		for (SymbolicExpression expr : exprResult.getComputedExpressions()) {
 			AnalysisState<A, H, V> tmp = exprResult.assign(meta, expr, this);
-			if (result == null)
-				result = tmp;
-			else
-				result = result.lub(tmp);
+			result = result.lub(tmp);
 		}
 
 		if (!getExpression().getMetaVariables().isEmpty())

@@ -64,20 +64,20 @@ public class OpenCall extends Call implements MetaVariableCreator {
 	}
 
 	@Override
-	public boolean isEqualTo(Statement st) {
-		if (this == st)
+	public boolean equals(Object obj) {
+		if (this == obj)
 			return true;
-		if (getClass() != st.getClass())
+		if (!super.equals(obj))
 			return false;
-		if (!super.isEqualTo(st))
+		if (getClass() != obj.getClass())
 			return false;
-		OpenCall other = (OpenCall) st;
+		OpenCall other = (OpenCall) obj;
 		if (targetName == null) {
 			if (other.targetName != null)
 				return false;
 		} else if (!targetName.equals(other.targetName))
 			return false;
-		return super.isEqualTo(other);
+		return true;
 	}
 
 	@Override
@@ -87,7 +87,7 @@ public class OpenCall extends Call implements MetaVariableCreator {
 
 	@Override
 	public final Identifier getMetaVariable() {
-		return new Variable(getRuntimeTypes(), "open_call_ret_value@" + getLocation());
+		return new Variable(getRuntimeTypes(), "open_call_ret_value@" + getLocation(), getLocation());
 	}
 
 	@Override
@@ -102,7 +102,7 @@ public class OpenCall extends Call implements MetaVariableCreator {
 		AnalysisState<A, H, V> poststate = entryState.top();
 
 		if (getStaticType().isVoidType())
-			return poststate.smallStepSemantics(new Skip(), this);
+			return poststate.smallStepSemantics(new Skip(getLocation()), this);
 		else
 			return poststate.smallStepSemantics(getMetaVariable(), this);
 	}

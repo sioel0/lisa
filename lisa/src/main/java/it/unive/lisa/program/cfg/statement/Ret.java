@@ -49,10 +49,12 @@ public class Ret extends Statement {
 	}
 
 	@Override
-	public boolean isEqualTo(Statement st) {
-		if (this == st)
+	public boolean equals(Object obj) {
+		if (this == obj)
 			return true;
-		if (!super.isEqualTo(st))
+		if (!super.equals(obj))
+			return false;
+		if (getClass() != obj.getClass())
 			return false;
 		return true;
 	}
@@ -69,7 +71,7 @@ public class Ret extends Statement {
 					AnalysisState<A, H, V> entryState, InterproceduralAnalysis<A, H, V> interprocedural,
 					StatementStore<A, H, V> expressions)
 					throws SemanticException {
-		return entryState.smallStepSemantics(new Skip(), this);
+		return entryState.smallStepSemantics(new Skip(getLocation()), this);
 	}
 
 	@Override

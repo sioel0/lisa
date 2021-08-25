@@ -66,14 +66,14 @@ public class Literal extends Expression {
 	}
 
 	@Override
-	public boolean isEqualTo(Statement st) {
-		if (this == st)
+	public boolean equals(Object obj) {
+		if (this == obj)
 			return true;
-		if (getClass() != st.getClass())
+		if (!super.equals(obj))
 			return false;
-		if (!super.isEqualTo(st))
+		if (getClass() != obj.getClass())
 			return false;
-		Literal other = (Literal) st;
+		Literal other = (Literal) obj;
 		if (value == null) {
 			if (other.value != null)
 				return false;
@@ -94,7 +94,7 @@ public class Literal extends Expression {
 					AnalysisState<A, H, V> entryState, InterproceduralAnalysis<A, H, V> interprocedural,
 					StatementStore<A, H, V> expressions)
 					throws SemanticException {
-		return entryState.smallStepSemantics(new Constant(getStaticType(), getValue()), this);
+		return entryState.smallStepSemantics(new Constant(getStaticType(), getValue(), getLocation()), this);
 	}
 
 	@Override
