@@ -262,19 +262,19 @@ LiSA provides three concrete implementations of the `Type` interface, that are m
 
 `Untyped` is the root of the type lattice, and is the default type for all typed constructs in LiSA. This enables the modeling of non statically typed languages without having to perform type inference at parse time.
 
-[cfg]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/program/cfg/CFG.java
-[st]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/program/cfg/statement/Statement.java
-[edge]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/program/cfg/edge/Edge.java
-[seq]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/program/cfg/edge/SequentialEdge.java 
-[true]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/program/cfg/edge/TrueEdge.java 
-[false]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/program/cfg/edge/FalseEdge.java 
-[noop]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/program/cfg/statement/NoOp.java
-[stpkg]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/program/cfg/statement/
-[call]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/program/cfg/statement/Call.java
-[cfgcall]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/program/cfg/statement/CFGCall.java
-[opencall]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/program/cfg/statement/OpenCall.java
-[nativecall]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/program/cfg/statement/NativeCall.java
-[unrescall]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/program/cfg/statement/UnresolvedCall.java
-[nulltype]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/type/NullType.java
-[voidtype]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/type/VoidType.java
-[untyped]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/src/main/java/it/unive/lisa/type/Untyped.java
+[cfg]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/lisa-sdk/src/main/java/it/unive/lisa/program/cfg/CFG.java
+[st]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/lisa-sdk/src/main/java/it/unive/lisa/program/cfg/statement/Statement.java
+[edge]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/lisa-sdk/src/main/java/it/unive/lisa/program/cfg/edge/Edge.java
+[seq]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/lisa-sdk/src/main/java/it/unive/lisa/program/cfg/edge/SequentialEdge.java 
+[true]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/lisa-sdk/src/main/java/it/unive/lisa/program/cfg/edge/TrueEdge.java 
+[false]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/lisa-sdk/src/main/java/it/unive/lisa/program/cfg/edge/FalseEdge.java 
+[noop]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/lisa-sdk/src/main/java/it/unive/lisa/program/cfg/statement/NoOp.java
+[stpkg]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/lisa-sdk/src/main/java/it/unive/lisa/program/cfg/statement/
+[call]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/lisa-sdk/src/main/java/it/unive/lisa/program/cfg/statement/call/Call.java
+[cfgcall]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/lisa-sdk/src/main/java/it/unive/lisa/program/cfg/statement/call/CFGCall.java
+[opencall]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/lisa-sdk/src/main/java/it/unive/lisa/program/cfg/statement/call/OpenCall.java
+[nativecall]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/lisa-sdk/src/main/java/it/unive/lisa/program/cfg/statement/call/NativeCall.java
+[unrescall]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/lisa-sdk/src/main/java/it/unive/lisa/program/cfg/statement/call/UnresolvedCall.java
+[nulltype]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/lisa-sdk/src/main/java/it/unive/lisa/type/NullType.java
+[voidtype]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/lisa-sdk/src/main/java/it/unive/lisa/type/VoidType.java
+[untyped]:https://github.com/UniVE-SSV/lisa/blob/master/lisa/lisa-sdk/src/main/java/it/unive/lisa/type/Untyped.java
