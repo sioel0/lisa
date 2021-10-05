@@ -673,3 +673,23 @@ html {
 		color: $section-headings-color;
 	}
 }
+
+/* this is the <time> tag used in the tutorials list */
+time { 
+	color: white;
+    background-color: #16955c;
+    border: 0px white solid;
+    border-radius: 100px;
+    padding: 0px 10px;
+	font-size: 1rem;
+}
+
+/* styling for the tables used to format the tutorials pages */
+.tutorialtable, .tutorialtable tr, .tutorialtable tr td {
+	border: none;
+	padding: 5px 0px 0px 10px;
+}
+.tutorialheader, .tutorialheader tr, .tutorialheader tr td {
+	border: none;
+	padding: 5px 0px 0px 0px;
+}
