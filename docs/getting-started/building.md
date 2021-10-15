@@ -1,10 +1,10 @@
 # Building from source 
 
-| **Goal:** retrieve the source code of LiSA and build it locally |
-| **LiSA release used:** 0.1b2 |
-| **Estimated time:** 5 minutes |
-| **Requirements:** [JDK 11](https://www.oracle.com/it/java/technologies/javase/jdk11-archive-downloads.html), [Git](https://git-scm.com/downloads), an IDE (optional - [Eclipse](https://www.eclipse.org/downloads/) or [IntelliJ](https://www.jetbrains.com/idea/download/)) |
-| **Note:** you should build from source only if you plan to work directly on LiSA itself, or if you need to work with an unreleased version. If you want to use LiSA as-is instead, please refer to the [Using a precompiled LiSA release](maven-dependency.md) tutorial instead. |
+| <name>Goal:</name> retrieve the source code of LiSA and build it locally |
+| <name>LiSA release used:</name> 0.1b2 |
+| <name>Estimated time:</name> 5 minutes |
+| <name>Requirements:</name> [JDK 11](https://www.oracle.com/it/java/technologies/javase/jdk11-archive-downloads.html), [Git](https://git-scm.com/downloads), an IDE (optional - [Eclipse](https://www.eclipse.org/downloads/) or [IntelliJ](https://www.jetbrains.com/idea/download/)) |
+| <name>Note:</name> you should build from source only if you plan to work directly on LiSA itself, or if you need to work with an unreleased version. If you want to use LiSA as-is instead, please refer to the [Creating a project using LiSA](maven-dependency.md) tutorial instead. |
 {:.tutorialheader}
 
 ----
@@ -12,6 +12,10 @@
 LiSA comes as a [Gradle](https://gradle.org/) 7.2 project. Gradle can be executed through a local wrapper without downloading and installing a centralized version of it, and LiSA comes with a wrapper! You'll always be able to build LiSA with the version of Gradle it is meant to be compiled with, without spending time managing your own Gradle installation.
 
 After cloning the repository with `git clone https://github.com/UniVE-SSV/lisa.git` or with any other Git wrapper (GitHub Desktop or GitHub Cli for example) of your choice, follow one of the tutorials below to get started. 
+
+Jump to instructions for [Eclipse](#eclipse), [IntelliJ IDEA](#intellij-idea), [Windows command line](#windows-command-line), or [Mac/Linux command line](#maclinux-command-line).
+
+Once you've set up your environment to build LiSA, you can add it as a dependency to a different project or work directly on it.
 
 ### Eclipse
 

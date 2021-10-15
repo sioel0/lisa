@@ -692,4 +692,7 @@ time {
 .tutorialheader, .tutorialheader tr, .tutorialheader tr td {
 	border: none;
 	padding: 5px 0px 0px 0px;
+	name {
+		color: $section-headings-color;
+	}
 }
