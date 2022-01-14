@@ -5,6 +5,18 @@ and a link to the javadoc documentation are available.
 
 ## Beta releases
 
+### 0.1b4
+
+Key changes: customizable open call handling, removal of enums (resolution strategy and symbolic operators) to increase modularity, removal of native calls, order of evaluation of expressions. More information in the GitHub [release](https://github.com/UniVE-SSV/lisa/releases/tag/v0.1b4).
+
+Javadoc: [sdk](https://www.javadoc.io/doc/com.github.unive-ssv/lisa-sdk/0.1b4/index.html) - [core](https://www.javadoc.io/doc/com.github.unive-ssv/lisa-core/0.1b4/index.html) - [imp](https://www.javadoc.io/doc/com.github.unive-ssv/lisa-imp/0.1b4/index.html)
+
+### 0.1b3
+
+Key changes: additions of missing accessors and constructors, exposing call resolution information to semantic checks. More information in the GitHub [release](https://github.com/UniVE-SSV/lisa/releases/tag/v0.1b3).
+
+Javadoc: [sdk](https://www.javadoc.io/doc/com.github.unive-ssv/lisa-sdk/0.1b3/index.html) - [core](https://www.javadoc.io/doc/com.github.unive-ssv/lisa-core/0.1b3/index.html) - [imp](https://www.javadoc.io/doc/com.github.unive-ssv/lisa-imp/0.1b3/index.html)
+
 ### 0.1b2
 
 Key changes: project splitting, default statements and types, more symbolic operators. More information in the GitHub [release](https://github.com/UniVE-SSV/lisa/releases/tag/v0.1b2).
