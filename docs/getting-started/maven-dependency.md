@@ -1,7 +1,7 @@
 # Creating a project using LiSA
 
 | <name>Goal:</name> using an official release of LiSA as a dependency of your project |
-| <name>LiSA release used:</name> 0.1b2 |
+| <name>LiSA release used:</name> 0.1b4 |
 | <name>Estimated time:</name> 5 minutes |
 | <name>Requirements:</name> [JDK 11](https://www.oracle.com/it/java/technologies/javase/jdk11-archive-downloads.html), a build tool of your choice (the tutorial will use [Gradle](https://gradle.org/), but steps for other build tools are the same), optionally an IDE ([Eclipse](https://www.eclipse.org/downloads/) or [IntelliJ](https://www.jetbrains.com/idea/download/)) |
 {:.tutorialheader}
