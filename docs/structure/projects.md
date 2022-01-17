@@ -38,7 +38,7 @@ For more information on these concepts, read the documentation on [LiSA's founda
 
 ### lisa-imp
 
-`lisa-imp` contains the IMP frontend that is used for demos and internal testing (mostly for cron tests in `lisa-core`). The project uses [antlr](https://www.antlr.org/) for generating a lexer and a parser starting from a grammar defined in `src/main/antlr`. Outputs of the generation are stored under `build/generated-src/antlr/main` and are used as additional sources for the project. The IMP frontend mostly uses expressions and types from the base ones present in `lisa-sdk`. For a documentation about the language, see the dedicated page [here]({{ site.baseurl}}/imp/).
+`lisa-imp` contains the IMP frontend that is used for demos and internal testing (mostly for cron tests in `lisa-core`). The project uses [antlr](https://www.antlr.org/) for generating a lexer and a parser starting from a grammar defined in `src/main/antlr`. Outputs of the generation are stored under `build/generated-src/antlr/main` and are used as additional sources for the project. The IMP frontend mostly uses expressions and types from the base ones present in `lisa-sdk`. For a documentation about the language, see the dedicated page [here]({{ site.baseurl }}/imp/).
 
 ## Releases 0.1b1 and older
 

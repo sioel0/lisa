@@ -67,6 +67,6 @@ The `build` task ensures that everything (from code generation to compilation, p
 
 ## Next steps
 
-Now that you know how to build LiSA (and optionally import it into an IDE), you can [create a project that directly references LiSA in your workspace](project-dependency.md), or you can immediately start implementing new components directly on LiSA.
+Now that you know how to build LiSA (and optionally import it into an IDE), you can immediately start implementing new components directly on LiSA.
 
 

@@ -13,9 +13,9 @@ Javadoc: [sdk](https://www.javadoc.io/doc/com.github.unive-ssv/lisa-sdk/0.1b4/in
 
 ### 0.1b3
 
-Key changes: additions of missing accessors and constructors, exposing call resolution information to semantic checks. More information in the GitHub [release](https://github.com/UniVE-SSV/lisa/releases/tag/v0.1b3).
+Key changes: additions of missing accessors and constructors, exposing call resolution information to semantic checks. More information in the GitHub [release](https://github.com/UniVE-SSV/lisa/releases/tag/v0.1.1).
 
-Javadoc: [sdk](https://www.javadoc.io/doc/com.github.unive-ssv/lisa-sdk/0.1b3/index.html) - [core](https://www.javadoc.io/doc/com.github.unive-ssv/lisa-core/0.1b3/index.html) - [imp](https://www.javadoc.io/doc/com.github.unive-ssv/lisa-imp/0.1b3/index.html)
+Javadoc: [sdk](https://www.javadoc.io/doc/com.github.unive-ssv/lisa-sdk/0.1.1/index.html) - [core](https://www.javadoc.io/doc/com.github.unive-ssv/lisa-core/0.1.1/index.html) - [imp](https://www.javadoc.io/doc/com.github.unive-ssv/lisa-imp/0.1.1/index.html)
 
 ### 0.1b2
 
