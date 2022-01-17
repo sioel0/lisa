@@ -4,6 +4,6 @@ title: LiSA
 description: A Library for Static Analysis
 google_analytics: G-S6MJSTDQJL
 
-exclude: [README.md, release.sh]
+exclude: [README.md, release.sh, schemes.pptx]
 
 ssv-homepage: https://ssv.dais.unive.it/
