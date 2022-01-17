@@ -11,9 +11,12 @@ import it.unive.lisa.interprocedural.callgraph.CallGraph;
 import it.unive.lisa.interprocedural.callgraph.CallResolutionException;
 import it.unive.lisa.program.cfg.CFG;
 import it.unive.lisa.program.cfg.CodeLocation;
-import it.unive.lisa.program.cfg.Parameter;
 import it.unive.lisa.program.cfg.statement.Expression;
+import it.unive.lisa.program.cfg.statement.call.resolution.ResolutionStrategy;
+import it.unive.lisa.program.cfg.statement.evaluation.EvaluationOrder;
+import it.unive.lisa.program.cfg.statement.evaluation.LeftToRightEvaluation;
 import it.unive.lisa.symbolic.SymbolicExpression;
+import it.unive.lisa.type.Type;
 import it.unive.lisa.type.Untyped;
 import java.util.Objects;
 import org.apache.commons.lang3.StringUtils;
@@ -29,103 +32,9 @@ import org.apache.commons.lang3.StringUtils;
 public class UnresolvedCall extends Call {
 
 	/**
-	 * An enum defining the different types of resolution strategies for call
-	 * signatures. Depending on the language, targets of calls might be resolved
-	 * (at compile time or runtime) relying on the static or runtime type of
-	 * their parameters. Each strategy in this enum comes with a different
-	 * {@link #matches(Parameter[], Expression[])} implementation that can
-	 * automatically detect if the signature of a cfg is matched by the given
-	 * expressions representing the parameters for a call to that cfg.
-	 * 
-	 * @author <a href="mailto:luca.negrini@unive.it">Luca Negrini</a>
-	 */
-	public enum ResolutionStrategy {
-
-		/**
-		 * A strategy where the static types of the parameters of the call are
-		 * evaluated against the signature of a cfg: for each parameter, if the
-		 * static type of the actual parameter can be assigned to the type of
-		 * the formal parameter, than
-		 * {@link #matches(Parameter[], Expression[])} return {@code true}.
-		 */
-		STATIC_TYPES {
-			@Override
-			protected boolean matches(int pos, Parameter formal, Expression actual) {
-				return actual.getStaticType().canBeAssignedTo(formal.getStaticType());
-			}
-		},
-
-		/**
-		 * A strategy where the dynamic (runtime) types of the parameters of the
-		 * call are evaluated against the signature of a cfg: for each
-		 * parameter, if at least one of the runtime types of the actual
-		 * parameter can be assigned to the type of the formal parameter, than
-		 * {@link #matches(Parameter[], Expression[])} return {@code true}.
-		 */
-		DYNAMIC_TYPES {
-			@Override
-			protected boolean matches(int pos, Parameter formal, Expression actual) {
-				return actual.getRuntimeTypes().anyMatch(rt -> rt.canBeAssignedTo(formal.getStaticType()));
-			}
-		},
-
-		/**
-		 * A strategy where the first parameter is tested using
-		 * {@link #DYNAMIC_TYPES}, while the rest is tested using
-		 * {@link #STATIC_TYPES}.
-		 */
-		FIRST_DYNAMIC_THEN_STATIC {
-			@Override
-			protected boolean matches(int pos, Parameter formal, Expression actual) {
-				return pos == 0 ? DYNAMIC_TYPES.matches(pos, formal, actual)
-						: STATIC_TYPES.matches(pos, formal, actual);
-			}
-		};
-
-		/**
-		 * Yields {@code true} if and only if the signature of a cfg (i.e. the
-		 * types of its parameters) is matched by the given actual parameters,
-		 * according to this strategy.
-		 * 
-		 * @param formals the parameters definition of the cfg
-		 * @param actuals the expression that are used as call parameters
-		 * 
-		 * @return {@code true} if and only if that condition holds
-		 */
-		public final boolean matches(Parameter[] formals, Expression[] actuals) {
-			if (formals.length != actuals.length)
-				return false;
-
-			for (int i = 0; i < formals.length; i++)
-				if (!matches(i, formals[i], actuals[i]))
-					return false;
-
-			return true;
-		}
-
-		/**
-		 * Yields {@code true} if and only if the signature of the
-		 * {@code pos}-th parameter of a cfg is matched by the given actual
-		 * parameter, according to this strategy.
-		 * 
-		 * @param pos    the position of the parameter being evaluated
-		 * @param formal the parameter definition of the cfg
-		 * @param actual the expression that is used as parameter
-		 * 
-		 * @return {@code true} if and only if that condition holds
-		 */
-		protected abstract boolean matches(int pos, Parameter formal, Expression actual);
-	}
-
-	/**
 	 * The {@link ResolutionStrategy} of the parameters of this call
 	 */
 	private final ResolutionStrategy strategy;
-
-	/**
-	 * The name of the call target
-	 */
-	private final String targetName;
 
 	/**
 	 * Whether or not this is a call to an instance method of a unit (that can
@@ -134,26 +43,88 @@ public class UnresolvedCall extends Call {
 	private final boolean instanceCall;
 
 	/**
-	 * Builds the CFG call, happening at the given location in the program. The
-	 * static type of this CFGCall is the one return type of the descriptor of
-	 * {@code target}.
+	 * Builds the unresolved call, happening at the given location in the
+	 * program. The static type of this call is {@link Untyped}. The
+	 * {@link EvaluationOrder} of the parameter is
+	 * {@link LeftToRightEvaluation}.
 	 * 
 	 * @param cfg          the cfg that this expression belongs to
 	 * @param location     the location where the expression is defined within
-	 *                         the source file. If unknown, use {@code null}
+	 *                         the program
 	 * @param strategy     the {@link ResolutionStrategy} of the parameters of
 	 *                         this call
 	 * @param instanceCall whether or not this is a call to an instance method
-	 *                         of a unit (that can be overridden) or not.
+	 *                         of a unit (that can be overridden) or not
 	 * @param targetName   the name of the target of this call
 	 * @param parameters   the parameters of this call
 	 */
 	public UnresolvedCall(CFG cfg, CodeLocation location, ResolutionStrategy strategy,
 			boolean instanceCall, String targetName, Expression... parameters) {
-		super(cfg, location, Untyped.INSTANCE, parameters);
-		Objects.requireNonNull(targetName, "The target's name of an unresolved call cannot be null");
+		this(cfg, location, strategy, instanceCall, targetName, Untyped.INSTANCE, parameters);
+	}
+
+	/**
+	 * Builds the unresolved call, happening at the given location in the
+	 * program. The {@link EvaluationOrder} of the parameter is
+	 * {@link LeftToRightEvaluation}.
+	 * 
+	 * @param cfg          the cfg that this expression belongs to
+	 * @param location     the location where the expression is defined within
+	 *                         the program
+	 * @param strategy     the {@link ResolutionStrategy} of the parameters of
+	 *                         this call
+	 * @param instanceCall whether or not this is a call to an instance method
+	 *                         of a unit (that can be overridden) or not.
+	 * @param targetName   the name of the target of this call
+	 * @param staticType   the static type of this call
+	 * @param parameters   the parameters of this call
+	 */
+	public UnresolvedCall(CFG cfg, CodeLocation location, ResolutionStrategy strategy,
+			boolean instanceCall, String targetName, Type staticType, Expression... parameters) {
+		this(cfg, location, strategy, instanceCall, targetName, LeftToRightEvaluation.INSTANCE, staticType, parameters);
+	}
+
+	/**
+	 * Builds the unresolved call, happening at the given location in the
+	 * program. The static type of this call is {@link Untyped}.
+	 * 
+	 * @param cfg          the cfg that this expression belongs to
+	 * @param location     the location where the expression is defined within
+	 *                         the program
+	 * @param strategy     the {@link ResolutionStrategy} of the parameters of
+	 *                         this call
+	 * @param instanceCall whether or not this is a call to an instance method
+	 *                         of a unit (that can be overridden) or not.
+	 * @param targetName   the name of the target of this call
+	 * @param order        the evaluation order of the sub-expressions
+	 * @param parameters   the parameters of this call
+	 */
+	public UnresolvedCall(CFG cfg, CodeLocation location, ResolutionStrategy strategy,
+			boolean instanceCall, String targetName, EvaluationOrder order, Expression... parameters) {
+		this(cfg, location, strategy, instanceCall, targetName, order, Untyped.INSTANCE, parameters);
+	}
+
+	/**
+	 * Builds the unresolved call, happening at the given location in the
+	 * program.
+	 * 
+	 * @param cfg          the cfg that this expression belongs to
+	 * @param location     the location where the expression is defined within
+	 *                         the program
+	 * @param strategy     the {@link ResolutionStrategy} of the parameters of
+	 *                         this call
+	 * @param instanceCall whether or not this is a call to an instance method
+	 *                         of a unit (that can be overridden) or not.
+	 * @param targetName   the name of the target of this call
+	 * @param order        the evaluation order of the sub-expressions
+	 * @param staticType   the static type of this call
+	 * @param parameters   the parameters of this call
+	 */
+	public UnresolvedCall(CFG cfg, CodeLocation location, ResolutionStrategy strategy,
+			boolean instanceCall, String targetName, EvaluationOrder order, Type staticType, Expression... parameters) {
+		super(cfg, location, targetName, order, staticType, parameters);
+		Objects.requireNonNull(strategy, "The resolution strategy of an unresolved call cannot be null");
 		this.strategy = strategy;
-		this.targetName = targetName;
 		this.instanceCall = instanceCall;
 	}
 
@@ -164,15 +135,6 @@ public class UnresolvedCall extends Call {
 	 */
 	public ResolutionStrategy getStrategy() {
 		return strategy;
-	}
-
-	/**
-	 * Yields the name of the target of this call.
-	 * 
-	 * @return the name of the target
-	 */
-	public String getTargetName() {
-		return targetName;
 	}
 
 	/**
@@ -192,7 +154,6 @@ public class UnresolvedCall extends Call {
 		int result = super.hashCode();
 		result = prime * result + (instanceCall ? 1231 : 1237);
 		result = prime * result + ((strategy == null) ? 0 : strategy.hashCode());
-		result = prime * result + ((targetName == null) ? 0 : targetName.hashCode());
 		return result;
 	}
 
@@ -209,25 +170,20 @@ public class UnresolvedCall extends Call {
 			return false;
 		if (strategy != other.strategy)
 			return false;
-		if (targetName == null) {
-			if (other.targetName != null)
-				return false;
-		} else if (!targetName.equals(other.targetName))
-			return false;
 		return true;
 	}
 
 	@Override
 	public String toString() {
-		return "[unresolved]" + targetName + "(" + StringUtils.join(getParameters(), ", ") + ")";
+		return "[unresolved]" + getConstructName() + "(" + StringUtils.join(getSubExpressions(), ", ") + ")";
 	}
 
 	@Override
 	public <A extends AbstractState<A, H, V>,
 			H extends HeapDomain<H>,
-			V extends ValueDomain<V>> AnalysisState<A, H, V> callSemantics(
-					AnalysisState<A, H, V> entryState, InterproceduralAnalysis<A, H, V> interprocedural,
-					AnalysisState<A, H, V>[] computedStates,
+			V extends ValueDomain<V>> AnalysisState<A, H, V> expressionSemantics(
+					InterproceduralAnalysis<A, H, V> interprocedural,
+					AnalysisState<A, H, V> state,
 					ExpressionSet<SymbolicExpression>[] params)
 					throws SemanticException {
 		Call resolved;
@@ -237,18 +193,9 @@ public class UnresolvedCall extends Call {
 			throw new SemanticException("Unable to resolve call " + this, e);
 		}
 		resolved.setRuntimeTypes(getRuntimeTypes());
-		AnalysisState<A, H, V> result = resolved.callSemantics(entryState, interprocedural, computedStates, params);
+		AnalysisState<A, H,
+				V> result = resolved.expressionSemantics(interprocedural, state, params);
 		getMetaVariables().addAll(resolved.getMetaVariables());
 		return result;
-	}
-
-	/**
-	 * Updates this call's runtime types to match the ones of the given
-	 * expression.
-	 * 
-	 * @param other the expression to inherit from
-	 */
-	public void inheritRuntimeTypesFrom(Expression other) {
-		setRuntimeTypes(other.getRuntimeTypes());
 	}
 }

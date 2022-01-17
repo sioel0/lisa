@@ -11,10 +11,12 @@ import it.unive.lisa.analysis.value.ValueDomain;
 import it.unive.lisa.caches.Caches;
 import it.unive.lisa.checks.ChecksExecutor;
 import it.unive.lisa.checks.semantic.CheckToolWithAnalysisResults;
+import it.unive.lisa.checks.semantic.SemanticCheck;
 import it.unive.lisa.checks.syntactic.CheckTool;
 import it.unive.lisa.checks.warnings.Warning;
 import it.unive.lisa.interprocedural.InterproceduralAnalysis;
 import it.unive.lisa.interprocedural.InterproceduralAnalysisException;
+import it.unive.lisa.interprocedural.OpenCallPolicy;
 import it.unive.lisa.interprocedural.callgraph.CallGraph;
 import it.unive.lisa.interprocedural.callgraph.CallGraphConstructionException;
 import it.unive.lisa.logging.IterationLogger;
@@ -134,7 +136,7 @@ public class LiSARunner<A extends AbstractState<A, H, V>,
 		}
 
 		try {
-			interproc.init(program, callGraph);
+			interproc.init(program, callGraph, conf.getOpenCallPolicy());
 		} catch (InterproceduralAnalysisException e) {
 			LOG.fatal("Exception while building the interprocedural analysis for the input program", e);
 			throw new AnalysisExecutionException(
@@ -142,7 +144,7 @@ public class LiSARunner<A extends AbstractState<A, H, V>,
 		}
 
 		if (conf.isInferTypes())
-			inferTypes(fileManager, program, allCFGs);
+			inferTypes(fileManager, program, allCFGs, conf.getOpenCallPolicy());
 		else
 			LOG.warn("Type inference disabled: dynamic type information will not be available for following analysis");
 
@@ -152,11 +154,13 @@ public class LiSARunner<A extends AbstractState<A, H, V>,
 			for (CFG cfg : allCFGs)
 				results.put(cfg, interproc.getAnalysisResultsOf(cfg));
 
-			if (!conf.getSemanticChecks().isEmpty()) {
+			@SuppressWarnings({ "rawtypes", "unchecked" })
+			Collection<SemanticCheck<A, H, V>> semanticChecks = (Collection) conf.getSemanticChecks();
+			if (!semanticChecks.isEmpty()) {
 				CheckToolWithAnalysisResults<A, H,
-						V> toolWithResults = new CheckToolWithAnalysisResults<>(tool, results);
-				tool = toolWithResults;
-				ChecksExecutor.executeAll(toolWithResults, program, conf.getSemanticChecks());
+						V> tool2 = new CheckToolWithAnalysisResults<>(tool, results, callGraph);
+				tool = tool2;
+				ChecksExecutor.executeAll(tool2, program, semanticChecks);
 			} else
 				LOG.warn("Skipping semantic checks execution since none have been provided");
 		} else
@@ -188,13 +192,16 @@ public class LiSARunner<A extends AbstractState<A, H, V>,
 	}
 
 	@SuppressWarnings("unchecked")
-	private void inferTypes(FileManager fileManager, Program program, Collection<CFG> allCFGs) {
+	private void inferTypes(FileManager fileManager, Program program, Collection<CFG> allCFGs, OpenCallPolicy policy) {
 		T typesState = this.typeState.top();
 		InterproceduralAnalysis<T, HT, VT> typesInterproc;
+		CallGraph typesCg;
 		try {
+			typesCg = getInstance(callGraph.getClass());
 			typesInterproc = getInstance(interproc.getClass());
-			typesInterproc.init(program, callGraph);
-		} catch (AnalysisSetupException | InterproceduralAnalysisException e) {
+			typesCg.init(program);
+			typesInterproc.init(program, typesCg, policy);
+		} catch (AnalysisSetupException | InterproceduralAnalysisException | CallGraphConstructionException e) {
 			throw new AnalysisExecutionException("Unable to initialize type inference", e);
 		}
 

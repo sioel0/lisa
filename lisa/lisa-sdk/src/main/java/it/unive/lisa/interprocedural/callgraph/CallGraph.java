@@ -1,11 +1,9 @@
 package it.unive.lisa.interprocedural.callgraph;
 
 import it.unive.lisa.program.Program;
-import it.unive.lisa.program.cfg.CFG;
 import it.unive.lisa.program.cfg.CodeMember;
 import it.unive.lisa.program.cfg.statement.call.CFGCall;
 import it.unive.lisa.program.cfg.statement.call.Call;
-import it.unive.lisa.program.cfg.statement.call.OpenCall;
 import it.unive.lisa.program.cfg.statement.call.UnresolvedCall;
 import java.util.Collection;
 
@@ -29,15 +27,7 @@ public interface CallGraph {
 
 	/**
 	 * Yields a {@link Call} implementation that corresponds to the resolution
-	 * of the given {@link UnresolvedCall}. This method will return:
-	 * <ul>
-	 * <li>a {@link CFGCall}, if at least one {@link CFG} that matches
-	 * {@link UnresolvedCall#getTargetName()} is found. The returned
-	 * {@link CFGCall} will be linked to all the possible runtime targets
-	 * matching {@link UnresolvedCall#getTargetName()};</li>
-	 * <li>an {@link OpenCall}, if no {@link CFG} matching
-	 * {@link UnresolvedCall#getTargetName()} is found.</li>
-	 * </ul>
+	 * of the given {@link UnresolvedCall}.
 	 * 
 	 * @param call the call to resolve
 	 * 
@@ -47,6 +37,13 @@ public interface CallGraph {
 	 *                                     the given call
 	 */
 	Call resolve(UnresolvedCall call) throws CallResolutionException;
+
+	/**
+	 * Registers an already resolved {@link CFGCall} in this {@link CallGraph}.
+	 * 
+	 * @param call the call to register
+	 */
+	void registerCall(CFGCall call);
 
 	/**
 	 * Yields all the {@link CodeMember}s that call the given one. The returned
@@ -69,4 +66,15 @@ public interface CallGraph {
 	 * @return the collection of called code members
 	 */
 	Collection<CodeMember> getCallees(CodeMember cm);
+
+	/**
+	 * Yields all the {@link Call}s that targets the given {@link CodeMember}.
+	 * The returned collection might contain partial results if this call graph
+	 * is not fully built.
+	 * 
+	 * @param cm the target code member
+	 * 
+	 * @return the collection of calls that target the code member
+	 */
+	Collection<Call> getCallSites(CodeMember cm);
 }

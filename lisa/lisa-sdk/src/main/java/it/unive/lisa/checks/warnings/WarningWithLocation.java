@@ -1,6 +1,7 @@
 package it.unive.lisa.checks.warnings;
 
 import it.unive.lisa.program.cfg.CodeLocation;
+import java.util.Objects;
 
 /**
  * A warning reported by LiSA on the program under analysis. This warning is
@@ -17,12 +18,12 @@ public abstract class WarningWithLocation extends Warning {
 	/**
 	 * Builds the warning.
 	 * 
-	 * @param location the location in the source file where this warning is
-	 *                     located. If unknown, use {@code, null}
+	 * @param location the location in the program where this warning is located
 	 * @param message  the message of this warning
 	 */
 	protected WarningWithLocation(CodeLocation location, String message) {
 		super(message);
+		Objects.requireNonNull(location, "The location of a warning with location cannot be null");
 		this.location = location;
 	}
 
@@ -31,13 +32,13 @@ public abstract class WarningWithLocation extends Warning {
 	 * 
 	 * @return the location of this warning
 	 */
-	public final String getLocation() {
-		return location.toString();
+	public final CodeLocation getLocation() {
+		return location;
 	}
 
 	/**
-	 * Yields the location where this warning was reported, surrounded by square
-	 * brackets.
+	 * Yields the string representation of the location where this warning was
+	 * reported, surrounded by square brackets.
 	 * 
 	 * @return the location of this warning surrounded by brackets
 	 */

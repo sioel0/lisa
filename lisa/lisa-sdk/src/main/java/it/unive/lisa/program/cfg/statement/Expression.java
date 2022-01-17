@@ -49,7 +49,7 @@ public abstract class Expression extends Statement {
 	 * 
 	 * @param cfg      the cfg that this expression belongs to
 	 * @param location the location where the expression is defined within the
-	 *                     source file. If unknown, use {@code null}
+	 *                     program
 	 */
 	protected Expression(CFG cfg, CodeLocation location) {
 		this(cfg, location, Untyped.INSTANCE);
@@ -60,7 +60,7 @@ public abstract class Expression extends Statement {
 	 * 
 	 * @param cfg        the cfg that this expression belongs to
 	 * @param location   the location where this expression is defined within
-	 *                       the source file. If unknown, use {@code null}
+	 *                       the program
 	 * @param staticType the static type of this expression
 	 */
 	protected Expression(CFG cfg, CodeLocation location, Type staticType) {
@@ -119,8 +119,16 @@ public abstract class Expression extends Statement {
 	 * @return the dynamic type of this expression
 	 */
 	public final Type getDynamicType() {
+		if (runtimeTypes == null || runtimeTypes.isEmpty())
+			// tweak 1: if runtime types have not been computed,
+			// the static type is for sure a sound dynamic type
+			// TODO: if runtime types are empty, this usually
+			// means that the expression is unreachable. How do
+			// we signal this situation?
+			return staticType;
+
 		ExternalSet<Type> runtimes = getRuntimeTypes();
-		return getRuntimeTypes().reduce(runtimes.first(), (result, t) -> {
+		return runtimes.reduce(runtimes.first(), (result, t) -> {
 			if (result.canBeAssignedTo(t))
 				return t;
 			if (t.canBeAssignedTo(result))

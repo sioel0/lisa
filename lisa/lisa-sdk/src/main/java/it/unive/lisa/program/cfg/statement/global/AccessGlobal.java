@@ -40,7 +40,7 @@ public class AccessGlobal extends Expression {
 	 * 
 	 * @param cfg       the cfg that this expression belongs to
 	 * @param location  the location where the expression is defined within the
-	 *                      source file. If unknown, use {@code null}
+	 *                      program
 	 * @param container the unit containing the accessed global
 	 * @param target    the accessed global
 	 */
@@ -48,6 +48,25 @@ public class AccessGlobal extends Expression {
 		super(cfg, location, target.getStaticType());
 		this.container = container;
 		this.target = target;
+	}
+
+	/**
+	 * Yields the {@link Unit} where the global targeted by this access is
+	 * defined.
+	 * 
+	 * @return the container of the global
+	 */
+	public Unit getContainer() {
+		return container;
+	}
+
+	/**
+	 * Yields the {@link Global} targeted by this expression.
+	 * 
+	 * @return the global
+	 */
+	public Global getTarget() {
+		return target;
 	}
 
 	@Override

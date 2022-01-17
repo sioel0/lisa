@@ -77,7 +77,7 @@ public abstract class FunctionalLattice<F extends FunctionalLattice<F, K, V>, K,
 	 * 
 	 * @return the set of keys
 	 */
-	public final Set<K> getKeys() {
+	public Set<K> getKeys() {
 		if (function == null)
 			return Collections.emptySet();
 		return function.keySet();
@@ -90,7 +90,7 @@ public abstract class FunctionalLattice<F extends FunctionalLattice<F, K, V>, K,
 	 * 
 	 * @return the state
 	 */
-	public final V getState(K key) {
+	public V getState(K key) {
 		if (isBottom())
 			return lattice.bottom();
 		if (isTop())
@@ -109,7 +109,7 @@ public abstract class FunctionalLattice<F extends FunctionalLattice<F, K, V>, K,
 	 * 
 	 * @return the new instance of this class with the updated mapping
 	 */
-	public final F putState(K key, V state) {
+	public F putState(K key, V state) {
 		F result = mk(lattice, mkNewFunction(null));
 
 		result.function.put(key, state);
@@ -133,12 +133,12 @@ public abstract class FunctionalLattice<F extends FunctionalLattice<F, K, V>, K,
 	protected abstract F mk(V lattice, Map<K, V> function);
 
 	@Override
-	public F lubAux(F other) throws SemanticException {
+	protected F lubAux(F other) throws SemanticException {
 		return functionalLift(other, this::lubKeys, (o1, o2) -> o1 == null ? o2 : o1.lub(o2));
 	}
 
 	@Override
-	public F wideningAux(F other) throws SemanticException {
+	protected F wideningAux(F other) throws SemanticException {
 		return functionalLift(other, this::lubKeys, (o1, o2) -> o1 == null ? o2 : o1.widening(o2));
 	}
 
@@ -202,7 +202,7 @@ public abstract class FunctionalLattice<F extends FunctionalLattice<F, K, V>, K,
 	 * @throws SemanticException if something goes wrong while lifting the
 	 *                               lattice elements
 	 */
-	protected final F functionalLift(F other, KeyFunctionalLift<K> keyLifter, FunctionalLift<V> valueLifter)
+	protected F functionalLift(F other, KeyFunctionalLift<K> keyLifter, FunctionalLift<V> valueLifter)
 			throws SemanticException {
 		F result = mk(lattice.lub(other.lattice), mkNewFunction(null));
 		Set<K> keys = keyLifter.keyLift(this.getKeys(), other.getKeys());
@@ -249,7 +249,7 @@ public abstract class FunctionalLattice<F extends FunctionalLattice<F, K, V>, K,
 	}
 
 	@Override
-	public boolean lessOrEqualAux(F other) throws SemanticException {
+	protected boolean lessOrEqualAux(F other) throws SemanticException {
 		for (K key : function.keySet())
 			if (getState(key) != null && (!getState(key).lessOrEqual(other.getState(key))))
 				return false;

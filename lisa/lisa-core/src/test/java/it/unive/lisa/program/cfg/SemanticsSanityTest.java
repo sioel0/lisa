@@ -30,11 +30,13 @@ import it.unive.lisa.analysis.representation.DomainRepresentation;
 import it.unive.lisa.analysis.representation.StringRepresentation;
 import it.unive.lisa.analysis.types.InferredTypes;
 import it.unive.lisa.analysis.value.ValueDomain;
+import it.unive.lisa.caches.Caches;
 import it.unive.lisa.imp.IMPFrontend;
 import it.unive.lisa.interprocedural.CFGResults;
 import it.unive.lisa.interprocedural.InterproceduralAnalysis;
 import it.unive.lisa.interprocedural.InterproceduralAnalysisException;
 import it.unive.lisa.interprocedural.ModularWorstCaseAnalysis;
+import it.unive.lisa.interprocedural.WorstCasePolicy;
 import it.unive.lisa.interprocedural.callgraph.CallGraph;
 import it.unive.lisa.interprocedural.callgraph.CallGraphConstructionException;
 import it.unive.lisa.interprocedural.callgraph.RTACallGraph;
@@ -46,7 +48,8 @@ import it.unive.lisa.program.Unit;
 import it.unive.lisa.program.cfg.edge.Edge;
 import it.unive.lisa.program.cfg.statement.Expression;
 import it.unive.lisa.program.cfg.statement.Statement;
-import it.unive.lisa.program.cfg.statement.call.UnresolvedCall.ResolutionStrategy;
+import it.unive.lisa.program.cfg.statement.call.resolution.ResolutionStrategy;
+import it.unive.lisa.program.cfg.statement.call.resolution.StaticTypesResolution;
 import it.unive.lisa.symbolic.SymbolicExpression;
 import it.unive.lisa.symbolic.value.Identifier;
 import it.unive.lisa.symbolic.value.PushAny;
@@ -54,6 +57,7 @@ import it.unive.lisa.symbolic.value.Skip;
 import it.unive.lisa.symbolic.value.ValueExpression;
 import it.unive.lisa.symbolic.value.Variable;
 import it.unive.lisa.type.Type;
+import it.unive.lisa.type.Untyped;
 import it.unive.lisa.type.common.BoolType;
 import it.unive.lisa.type.common.StringType;
 import it.unive.lisa.util.collections.externalSet.ExternalSet;
@@ -100,7 +104,7 @@ public class SemanticsSanityTest {
 		cg = new RTACallGraph();
 		cg.init(p);
 		interprocedural = new ModularWorstCaseAnalysis<>();
-		interprocedural.init(p, cg);
+		interprocedural.init(p, cg, WorstCasePolicy.INSTANCE);
 		as = new AnalysisState<>(new SimpleAbstractState<>(new MonolithicHeap(), new ValueEnvironment<>(new Sign())),
 				new ExpressionSet<>());
 		store = new StatementStore<>(as);
@@ -129,7 +133,9 @@ public class SemanticsSanityTest {
 							throws SemanticException {
 				return entryState
 						.smallStepSemantics(
-								new Variable(getRuntimeTypes(), "fake", new SourceCodeLocation("unknown", 0, 0)), fake);
+								new Variable(Caches.types().mkSingletonSet(Untyped.INSTANCE), "fake",
+										new SourceCodeLocation("unknown", 0, 0)),
+								fake);
 			}
 		};
 	}
@@ -158,7 +164,7 @@ public class SemanticsSanityTest {
 		if (param == Collection.class)
 			return Collections.emptyList();
 		if (param == ResolutionStrategy.class)
-			return ResolutionStrategy.STATIC_TYPES;
+			return StaticTypesResolution.INSTANCE;
 		if (param == Unit.class)
 			return unit;
 		if (param == CodeLocation.class)
@@ -183,6 +189,8 @@ public class SemanticsSanityTest {
 						for (int i = 0; i < params.length; i++)
 							params[i] = valueFor(types[i]);
 						Statement st = (Statement) c.newInstance(params);
+						if (st instanceof Expression)
+							((Expression) st).setRuntimeTypes(Caches.types().mkSingletonSet(Untyped.INSTANCE));
 						st.semantics(as, interprocedural, store);
 					} catch (Exception e) {
 						failures.computeIfAbsent(statement, s -> new HashMap<>())

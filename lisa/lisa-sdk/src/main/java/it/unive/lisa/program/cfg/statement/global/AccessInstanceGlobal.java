@@ -43,7 +43,7 @@ public class AccessInstanceGlobal extends Expression {
 	 * 
 	 * @param cfg      the cfg that this expression belongs to
 	 * @param location the location where the expression is defined within the
-	 *                     source file, if unknown use {@code null}
+	 *                     program
 	 * @param receiver the expression that determines the accessed instance
 	 * @param target   the accessed global
 	 */
@@ -52,6 +52,25 @@ public class AccessInstanceGlobal extends Expression {
 		this.receiver = receiver;
 		this.target = target;
 		receiver.setParentStatement(this);
+	}
+
+	/**
+	 * Yields the expression that determines the receiver of the global access
+	 * defined by this expression.
+	 * 
+	 * @return the receiver of the access
+	 */
+	public Expression getReceiver() {
+		return receiver;
+	}
+
+	/**
+	 * Yields the instance {@link Global} targeted by this expression.
+	 * 
+	 * @return the global
+	 */
+	public Global getTarget() {
+		return target;
 	}
 
 	@Override

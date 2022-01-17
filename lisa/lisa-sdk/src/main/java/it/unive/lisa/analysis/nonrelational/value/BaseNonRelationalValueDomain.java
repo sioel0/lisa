@@ -11,17 +11,22 @@ import it.unive.lisa.symbolic.heap.HeapAllocation;
 import it.unive.lisa.symbolic.heap.HeapDereference;
 import it.unive.lisa.symbolic.heap.HeapReference;
 import it.unive.lisa.symbolic.value.BinaryExpression;
-import it.unive.lisa.symbolic.value.BinaryOperator;
 import it.unive.lisa.symbolic.value.Constant;
 import it.unive.lisa.symbolic.value.Identifier;
 import it.unive.lisa.symbolic.value.NullConstant;
 import it.unive.lisa.symbolic.value.PushAny;
 import it.unive.lisa.symbolic.value.Skip;
 import it.unive.lisa.symbolic.value.TernaryExpression;
-import it.unive.lisa.symbolic.value.TernaryOperator;
 import it.unive.lisa.symbolic.value.UnaryExpression;
-import it.unive.lisa.symbolic.value.UnaryOperator;
 import it.unive.lisa.symbolic.value.ValueExpression;
+import it.unive.lisa.symbolic.value.operator.binary.BinaryOperator;
+import it.unive.lisa.symbolic.value.operator.binary.LogicalAnd;
+import it.unive.lisa.symbolic.value.operator.binary.LogicalOr;
+import it.unive.lisa.symbolic.value.operator.binary.TypeCast;
+import it.unive.lisa.symbolic.value.operator.binary.TypeConv;
+import it.unive.lisa.symbolic.value.operator.ternary.TernaryOperator;
+import it.unive.lisa.symbolic.value.operator.unary.LogicalNegation;
+import it.unive.lisa.symbolic.value.operator.unary.UnaryOperator;
 
 /**
  * Base implementation for {@link NonRelationalValueDomain}s. This class extends
@@ -76,10 +81,10 @@ public abstract class BaseNonRelationalValueDomain<T extends BaseNonRelationalVa
 			if (right.isBottom())
 				return right;
 
-			if (expression.getOperator() == BinaryOperator.TYPE_CAST)
+			if (expression.getOperator() == TypeCast.INSTANCE)
 				return evalTypeCast(expression, left, right, (ProgramPoint) params[1]);
 
-			if (expression.getOperator() == BinaryOperator.TYPE_CONV)
+			if (expression.getOperator() == TypeConv.INSTANCE)
 				return evalTypeConv(expression, left, right, (ProgramPoint) params[1]);
 
 			return evalBinaryExpression(expression.getOperator(), left, right, (ProgramPoint) params[1]);
@@ -123,7 +128,7 @@ public abstract class BaseNonRelationalValueDomain<T extends BaseNonRelationalVa
 	}
 
 	@Override
-	public final Satisfiability satisfies(ValueExpression expression, ValueEnvironment<T> environment,
+	public Satisfiability satisfies(ValueExpression expression, ValueEnvironment<T> environment,
 			ProgramPoint pp) throws SemanticException {
 		if (expression instanceof Identifier)
 			return satisfiesAbstractValue(environment.getState((Identifier) expression), pp);
@@ -137,7 +142,7 @@ public abstract class BaseNonRelationalValueDomain<T extends BaseNonRelationalVa
 		if (expression instanceof UnaryExpression) {
 			UnaryExpression unary = (UnaryExpression) expression;
 
-			if (unary.getOperator() == UnaryOperator.LOGICAL_NOT)
+			if (unary.getOperator() == LogicalNegation.INSTANCE)
 				return satisfies((ValueExpression) unary.getExpression(), environment, pp).negate();
 			else {
 				T arg = eval((ValueExpression) unary.getExpression(), environment, pp);
@@ -151,10 +156,10 @@ public abstract class BaseNonRelationalValueDomain<T extends BaseNonRelationalVa
 		if (expression instanceof BinaryExpression) {
 			BinaryExpression binary = (BinaryExpression) expression;
 
-			if (binary.getOperator() == BinaryOperator.LOGICAL_AND)
+			if (binary.getOperator() == LogicalAnd.INSTANCE)
 				return satisfies((ValueExpression) binary.getLeft(), environment, pp)
 						.and(satisfies((ValueExpression) binary.getRight(), environment, pp));
-			else if (binary.getOperator() == BinaryOperator.LOGICAL_OR)
+			else if (binary.getOperator() == LogicalOr.INSTANCE)
 				return satisfies((ValueExpression) binary.getLeft(), environment, pp)
 						.or(satisfies((ValueExpression) binary.getRight(), environment, pp));
 			else {
@@ -192,7 +197,7 @@ public abstract class BaseNonRelationalValueDomain<T extends BaseNonRelationalVa
 	}
 
 	@Override
-	public final T eval(ValueExpression expression, ValueEnvironment<T> environment, ProgramPoint pp)
+	public T eval(ValueExpression expression, ValueEnvironment<T> environment, ProgramPoint pp)
 			throws SemanticException {
 		return expression.accept(new EvaluationVisitor(), environment, pp);
 	}
@@ -234,8 +239,10 @@ public abstract class BaseNonRelationalValueDomain<T extends BaseNonRelationalVa
 	 *                    evaluated
 	 * 
 	 * @return the evaluation of the push-any expression
+	 * 
+	 * @throws SemanticException if an error occurs during the computation
 	 */
-	protected T evalPushAny(PushAny pushAny, ProgramPoint pp) {
+	protected T evalPushAny(PushAny pushAny, ProgramPoint pp) throws SemanticException {
 		return top();
 	}
 
@@ -250,8 +257,10 @@ public abstract class BaseNonRelationalValueDomain<T extends BaseNonRelationalVa
 	 *                  evaluated
 	 * 
 	 * @return the evaluation of the type conversion expression
+	 * 
+	 * @throws SemanticException if an error occurs during the computation
 	 */
-	protected T evalTypeConv(BinaryExpression conv, T left, T right, ProgramPoint pp) {
+	protected T evalTypeConv(BinaryExpression conv, T left, T right, ProgramPoint pp) throws SemanticException {
 		return conv.getTypes().isEmpty() ? bottom() : left;
 	}
 
@@ -266,8 +275,10 @@ public abstract class BaseNonRelationalValueDomain<T extends BaseNonRelationalVa
 	 *                  evaluated
 	 * 
 	 * @return the evaluation of the type cast expression
+	 * 
+	 * @throws SemanticException if an error occurs during the computation
 	 */
-	protected T evalTypeCast(BinaryExpression cast, T left, T right, ProgramPoint pp) {
+	protected T evalTypeCast(BinaryExpression cast, T left, T right, ProgramPoint pp) throws SemanticException {
 		return cast.getTypes().isEmpty() ? bottom() : left;
 	}
 
@@ -277,8 +288,10 @@ public abstract class BaseNonRelationalValueDomain<T extends BaseNonRelationalVa
 	 * @param pp the program point that where this operation is being evaluated
 	 * 
 	 * @return the evaluation of the constant
+	 * 
+	 * @throws SemanticException if an error occurs during the computation
 	 */
-	protected T evalNullConstant(ProgramPoint pp) {
+	protected T evalNullConstant(ProgramPoint pp) throws SemanticException {
 		return top();
 	}
 
@@ -290,8 +303,10 @@ public abstract class BaseNonRelationalValueDomain<T extends BaseNonRelationalVa
 	 *                     evaluated
 	 * 
 	 * @return the evaluation of the constant
+	 * 
+	 * @throws SemanticException if an error occurs during the computation
 	 */
-	protected T evalNonNullConstant(Constant constant, ProgramPoint pp) {
+	protected T evalNonNullConstant(Constant constant, ProgramPoint pp) throws SemanticException {
 		return top();
 	}
 
@@ -307,8 +322,10 @@ public abstract class BaseNonRelationalValueDomain<T extends BaseNonRelationalVa
 	 *                     evaluated
 	 * 
 	 * @return the evaluation of the expression
+	 * 
+	 * @throws SemanticException if an error occurs during the computation
 	 */
-	protected T evalUnaryExpression(UnaryOperator operator, T arg, ProgramPoint pp) {
+	protected T evalUnaryExpression(UnaryOperator operator, T arg, ProgramPoint pp) throws SemanticException {
 		return top();
 	}
 
@@ -317,8 +334,7 @@ public abstract class BaseNonRelationalValueDomain<T extends BaseNonRelationalVa
 	 * {@code operator} to two expressions whose abstract value are {@code left}
 	 * and {@code right}, respectively. It is guaranteed that both {@code left}
 	 * and {@code right} are not {@link #bottom()} and that {@code operator} is
-	 * neither {@link BinaryOperator#TYPE_CAST} nor
-	 * {@link BinaryOperator#TYPE_CONV}.
+	 * neither {@link TypeCast} nor {@link TypeConv}.
 	 * 
 	 * @param operator the operator applied by the expression
 	 * @param left     the instance of this domain representing the abstract
@@ -329,8 +345,11 @@ public abstract class BaseNonRelationalValueDomain<T extends BaseNonRelationalVa
 	 *                     evaluated
 	 * 
 	 * @return the evaluation of the expression
+	 * 
+	 * @throws SemanticException if an error occurs during the computation
 	 */
-	protected T evalBinaryExpression(BinaryOperator operator, T left, T right, ProgramPoint pp) {
+	protected T evalBinaryExpression(BinaryOperator operator, T left, T right, ProgramPoint pp)
+			throws SemanticException {
 		return top();
 	}
 
@@ -352,8 +371,11 @@ public abstract class BaseNonRelationalValueDomain<T extends BaseNonRelationalVa
 	 *                     evaluated
 	 * 
 	 * @return the evaluation of the expression
+	 * 
+	 * @throws SemanticException if an error occurs during the computation
 	 */
-	protected T evalTernaryExpression(TernaryOperator operator, T left, T middle, T right, ProgramPoint pp) {
+	protected T evalTernaryExpression(TernaryOperator operator, T left, T middle, T right, ProgramPoint pp)
+			throws SemanticException {
 		return top();
 	}
 
@@ -370,8 +392,10 @@ public abstract class BaseNonRelationalValueDomain<T extends BaseNonRelationalVa
 	 *             either impossible to determine if it satisfied, or if it is
 	 *             satisfied by some values and not by some others (this is
 	 *             equivalent to a TOP boolean value)
+	 * 
+	 * @throws SemanticException if an error occurs during the computation
 	 */
-	protected Satisfiability satisfiesAbstractValue(T value, ProgramPoint pp) {
+	protected Satisfiability satisfiesAbstractValue(T value, ProgramPoint pp) throws SemanticException {
 		return Satisfiability.UNKNOWN;
 	}
 
@@ -387,8 +411,10 @@ public abstract class BaseNonRelationalValueDomain<T extends BaseNonRelationalVa
 	 *             either impossible to determine if it satisfied, or if it is
 	 *             satisfied by some values and not by some others (this is
 	 *             equivalent to a TOP boolean value)
+	 * 
+	 * @throws SemanticException if an error occurs during the computation
 	 */
-	protected Satisfiability satisfiesNullConstant(ProgramPoint pp) {
+	protected Satisfiability satisfiesNullConstant(ProgramPoint pp) throws SemanticException {
 		return Satisfiability.UNKNOWN;
 	}
 
@@ -406,8 +432,10 @@ public abstract class BaseNonRelationalValueDomain<T extends BaseNonRelationalVa
 	 *             either impossible to determine if it satisfied, or if it is
 	 *             satisfied by some values and not by some others (this is
 	 *             equivalent to a TOP boolean value)
+	 * 
+	 * @throws SemanticException if an error occurs during the computation
 	 */
-	protected Satisfiability satisfiesNonNullConstant(Constant constant, ProgramPoint pp) {
+	protected Satisfiability satisfiesNonNullConstant(Constant constant, ProgramPoint pp) throws SemanticException {
 		return Satisfiability.UNKNOWN;
 	}
 
@@ -415,8 +443,8 @@ public abstract class BaseNonRelationalValueDomain<T extends BaseNonRelationalVa
 	 * Yields the satisfiability of a {@link UnaryExpression} applying
 	 * {@code operator} to an expression whose abstract value is {@code arg},
 	 * returning an instance of {@link Satisfiability}. It is guaranteed that
-	 * {@code operator} is not {@link UnaryOperator#LOGICAL_NOT} and {@code arg}
-	 * is not {@link #bottom()}.
+	 * {@code operator} is not {@link LogicalNegation} and {@code arg} is not
+	 * {@link #bottom()}.
 	 * 
 	 * @param operator the unary operator applied by the expression
 	 * @param arg      an instance of this abstract domain representing the
@@ -430,8 +458,11 @@ public abstract class BaseNonRelationalValueDomain<T extends BaseNonRelationalVa
 	 *             either impossible to determine if it satisfied, or if it is
 	 *             satisfied by some values and not by some others (this is
 	 *             equivalent to a TOP boolean value)
+	 * 
+	 * @throws SemanticException if an error occurs during the computation
 	 */
-	protected Satisfiability satisfiesUnaryExpression(UnaryOperator operator, T arg, ProgramPoint pp) {
+	protected Satisfiability satisfiesUnaryExpression(UnaryOperator operator, T arg, ProgramPoint pp)
+			throws SemanticException {
 		return Satisfiability.UNKNOWN;
 	}
 
@@ -440,8 +471,8 @@ public abstract class BaseNonRelationalValueDomain<T extends BaseNonRelationalVa
 	 * {@code operator} to two expressions whose abstract values are
 	 * {@code left}, and {@code right}. This method returns an instance of
 	 * {@link Satisfiability}. It is guaranteed that {@code operator} is neither
-	 * {@link BinaryOperator#LOGICAL_AND} nor {@link BinaryOperator#LOGICAL_OR},
-	 * and that both {@code left} and {@code right} are not {@link #bottom()}.
+	 * {@link LogicalAnd} nor {@link LogicalOr}, and that both {@code left} and
+	 * {@code right} are not {@link #bottom()}.
 	 * 
 	 * @param operator the binary operator applied by the expression
 	 * @param left     an instance of this abstract domain representing the
@@ -459,9 +490,11 @@ public abstract class BaseNonRelationalValueDomain<T extends BaseNonRelationalVa
 	 *             either impossible to determine if it satisfied, or if it is
 	 *             satisfied by some values and not by some others (this is
 	 *             equivalent to a TOP boolean value)
+	 * 
+	 * @throws SemanticException if an error occurs during the computation
 	 */
 	protected Satisfiability satisfiesBinaryExpression(BinaryOperator operator, T left, T right,
-			ProgramPoint pp) {
+			ProgramPoint pp) throws SemanticException {
 		return Satisfiability.UNKNOWN;
 	}
 
@@ -490,9 +523,11 @@ public abstract class BaseNonRelationalValueDomain<T extends BaseNonRelationalVa
 	 *             either impossible to determine if it satisfied, or if it is
 	 *             satisfied by some values and not by some others (this is
 	 *             equivalent to a TOP boolean value)
+	 * 
+	 * @throws SemanticException if an error occurs during the computation
 	 */
 	protected Satisfiability satisfiesTernaryExpression(TernaryOperator operator, T left, T middle, T right,
-			ProgramPoint pp) {
+			ProgramPoint pp) throws SemanticException {
 		return Satisfiability.UNKNOWN;
 	}
 
@@ -502,12 +537,12 @@ public abstract class BaseNonRelationalValueDomain<T extends BaseNonRelationalVa
 	}
 
 	@Override
-	public final ValueEnvironment<T> assume(ValueEnvironment<T> environment, ValueExpression expression,
+	public ValueEnvironment<T> assume(ValueEnvironment<T> environment, ValueExpression expression,
 			ProgramPoint pp) throws SemanticException {
 		if (expression instanceof UnaryExpression) {
 			UnaryExpression unary = (UnaryExpression) expression;
 
-			if (unary.getOperator() == UnaryOperator.LOGICAL_NOT) {
+			if (unary.getOperator() == LogicalNegation.INSTANCE) {
 				ValueExpression rewritten = unary.removeNegations();
 				// It is possible that the expression cannot be rewritten (e.g.,
 				// !true) hence we recursively call assume iff something changed
@@ -521,10 +556,10 @@ public abstract class BaseNonRelationalValueDomain<T extends BaseNonRelationalVa
 		if (expression instanceof BinaryExpression) {
 			BinaryExpression binary = (BinaryExpression) expression;
 
-			if (binary.getOperator() == BinaryOperator.LOGICAL_AND)
+			if (binary.getOperator() == LogicalAnd.INSTANCE)
 				return assume(environment, (ValueExpression) binary.getLeft(), pp)
 						.glb(assume(environment, (ValueExpression) binary.getRight(), pp));
-			else if (binary.getOperator() == BinaryOperator.LOGICAL_OR)
+			else if (binary.getOperator() == LogicalOr.INSTANCE)
 				return assume(environment, (ValueExpression) binary.getLeft(), pp)
 						.lub(assume(environment, (ValueExpression) binary.getRight(), pp));
 			else
@@ -573,8 +608,7 @@ public abstract class BaseNonRelationalValueDomain<T extends BaseNonRelationalVa
 	 * Yields the environment {@code environment} assuming that a binary
 	 * expression with operator {@code operator}, left argument {@code left},
 	 * and right argument {@code right} holds. The binary expression with binary
-	 * operator {@link BinaryOperator#LOGICAL_AND} and
-	 * {@link BinaryOperator#LOGICAL_OR} are already handled by
+	 * operator {@link LogicalAnd} and {@link LogicalOr} are already handled by
 	 * {@link BaseNonRelationalValueDomain#assume}.
 	 * 
 	 * @param environment the environment on which the expression must be
@@ -647,8 +681,10 @@ public abstract class BaseNonRelationalValueDomain<T extends BaseNonRelationalVa
 	 * @param other the other domain element
 	 * 
 	 * @return the greatest lower bound between this domain element and other
+	 * 
+	 * @throws SemanticException if an error occurs during the computation
 	 */
-	protected T glbAux(T other) {
+	protected T glbAux(T other) throws SemanticException {
 		return bottom();
 	}
 }
