@@ -7,11 +7,14 @@ on:
 
 jobs:
   build-and-cron:
-    name: 'Run a full gradle build and execute cron tests'
     runs-on: ubuntu-latest
     steps:
     - name: 'Checkout'
       uses: actions/checkout@v2
+      with:
+        fetch-depth: 0 # needed to have the tags below
+    - name: 'Ensure git is installed'
+      run: sudo apt-get install -y git
     - name: 'Set up JDK 11'
       uses: actions/setup-java@v1
       with:
@@ -27,3 +30,83 @@ jobs:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         check_name: 'All Test Results (unit + cron)'
         files: lisa/lisa-*/build/test-results/**/TEST-*.xml
+    - name: 'Delete pre-releases of lisa-sdk from packages'
+      uses: actions/delete-package-versions@v2
+      with: 
+        package-name: 'com.github.unive-ssv.lisa-sdk'
+        min-versions-to-keep: 0
+        delete-only-pre-release-versions: "true"
+    - name: 'Delete pre-releases of lisa-core from packages'
+      uses: actions/delete-package-versions@v2
+      with: 
+        package-name: 'com.github.unive-ssv.lisa-core'
+        min-versions-to-keep: 0
+        delete-only-pre-release-versions: "true"
+    - name: 'Delete pre-releases of lisa-imp from packages'
+      uses: actions/delete-package-versions@v2
+      with: 
+        package-name: 'com.github.unive-ssv.lisa-imp'
+        min-versions-to-keep: 0
+        delete-only-pre-release-versions: "true"
+    - name: 'Retrieve commit list'
+      id: gitinfo
+      run: |
+        currenttag=$(git describe --tags --abbrev=0)
+        while [[ "$currenttag" != "v"* ]]; do
+            # go back until the first version tag
+            currenttag=$(git describe --tags --abbrev=0 $currenttag^)
+        done
+        # now currenttag contains the last proper tag, excluding 'latest' or similar
+        git log $(if [[ -z $currenttag ]]; then echo HEAD; else echo $currenttag..HEAD; fi) --pretty=format:"%C(auto)%h - %s" >> changelog.txt
+        function join_by {
+          local d=${1-} f=${2-}
+          if shift 2; then
+            printf %s "$f" "${@/#/$d}"
+          fi
+        }
+        # tokenize whenever we transition from numbers to whatever else
+        # 5.2b4 -> (5 . 2 b 4)
+        currenttag=${currenttag#?} # remove the v
+        nexttag=( $(grep -oE '[0-9]+|[^0-9]+' <<< $currenttag) ) 
+        let nexttag[-1]=${nexttag[-1]}+1
+        nextver=$(join_by "" "${nexttag[@]}")
+        changelog=$(cat changelog.txt)
+        echo "currentver: $currenttag"
+        echo "nextver: $nextver"
+        echo "changelog: $changelog"
+        echo "::set-output name=nextver::$nextver"
+        echo "::set-output name=currentver::$currenttag"
+        echo "CHANGELOG<<EOF" >> $GITHUB_ENV
+        echo "$changelog" >> $GITHUB_ENV
+        echo "EOF" >> $GITHUB_ENV
+    - name: 'Gradle: publish to GitHub Packages'
+      env:
+        SIGN_PW: ${{ secrets.SIGN_PASSPHRASE }}
+        SIGN_KEY: ${{ secrets.SIGN_PRIVATE_KEY }}
+        MAVEN_USERNAME: ${{ secrets.OSSRH_USERNAME }}
+        MAVEN_PASSWORD: ${{ secrets.OSSRH_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: cd lisa && ./gradlew -Pversion=${{ steps.gitinfo.outputs.nextver }}-SNAPSHOT publishAllPublicationsToGitHubPackagesRepository
+    - name: Delete old latest tag
+      uses: dev-drprasad/delete-tag-and-release@v0.2.0
+      with:
+        tag_name: latest
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Create snapshot release
+      uses: viperproject/create-nightly-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: latest
+        release_name: "Latest snapshot relese: ${{ steps.gitinfo.outputs.nextver }}-SNAPSHOT"
+        body: |
+          Latest snapshot relese: ${{ steps.gitinfo.outputs.nextver }}-SNAPSHOT.
+          This release is not stable: its contents will be replaced at each push on branch `master`.
+          No older copies of the snapshots will be kept in GitHub Packages.
+          
+          Contents (commits since ${{ steps.gitinfo.outputs.currentver }}):
+          ${{ env.CHANGELOG }}
+        keep_num: 0
+        keep_tags: false
+        
