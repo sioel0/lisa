@@ -3,6 +3,10 @@
 The following releases have been made publicly available. For each of them, a link to the GitHub release page, containing links to the artifacts, 
 and a link to the javadoc documentation are available.
 
+#### Snapshots
+
+The snapshot of the last commit of the `master` branch is always available on [GitHub Packages](https://github.com/orgs/UniVE-SSV/packages?repo_name=lisa) (you can find the updated milestone [here](https://github.com/UniVE-SSV/lisa/releases/tag/latest)). To use it, the dependency manager has to be set to use `https://maven.pkg.github.com/UniVE-SSV/lisa` as url for resolution.
+
 ## Beta releases
 
 ### 0.1b4
