@@ -5,7 +5,7 @@ and a link to the javadoc documentation are available.
 
 #### Snapshots
 
-The snapshot of the last commit of the `master` branch is always available on [GitHub Packages](https://github.com/orgs/UniVE-SSV/packages?repo_name=lisa) (you can find the updated milestone [here](https://github.com/UniVE-SSV/lisa/releases/tag/latest)). To use it, the dependency manager has to be set to use `https://maven.pkg.github.com/UniVE-SSV/lisa` as url for resolution.
+The snapshot of the last commit of the `master` branch is always available on [GitHub Packages](https://github.com/orgs/UniVE-SSV/packages?repo_name=lisa) (you can find the updated milestone [here](https://github.com/UniVE-SSV/lisa/releases/tag/latest)). To use it, the dependency manager has to be set to use `https://maven.pkg.github.com/UniVE-SSV/lisa` as url for resolution, and credentials (username and personal accesso token with read permission to GitHub Packages) should be provided. You can refer to the official GitHub [Maven](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-apache-maven-registry#authenticating-to-github-packages) or [Gradle](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-gradle-registry#authenticating-to-github-packages) for more information.
 
 ## Beta releases
 
