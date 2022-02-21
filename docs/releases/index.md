@@ -9,6 +9,12 @@ The snapshot of the last commit of the `master` branch is always available on [G
 
 ## Beta releases
 
+### 0.1b5
+
+Key changes: improved customizability of call resolution, support for symbol aliasing, analysis-time type inference. More information in the GitHub [release](https://github.com/UniVE-SSV/lisa/releases/tag/v0.1b5).
+
+Javadoc: [sdk](https://www.javadoc.io/doc/com.github.unive-ssv/lisa-sdk/0.1b5/index.html) - [core](https://www.javadoc.io/doc/com.github.unive-ssv/lisa-core/0.1b5/index.html) - [imp](https://www.javadoc.io/doc/com.github.unive-ssv/lisa-imp/0.1b5/index.html)
+
 ### 0.1b4
 
 Key changes: customizable open call handling, removal of enums (resolution strategy and symbolic operators) to increase modularity, removal of native calls, order of evaluation of expressions. More information in the GitHub [release](https://github.com/UniVE-SSV/lisa/releases/tag/v0.1b4).
